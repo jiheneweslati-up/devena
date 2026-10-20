@@ -18,6 +18,7 @@ public:
 
 private:
     void creerInterface();
+    void chargerProjets();
     void afficherListe();
     void ajouterProjet();
     void afficherProjet(int index);
@@ -28,6 +29,7 @@ private:
     void afficherCelebration(const QString &nomProjet);
 
 private:
+    Projet gestionProjet;
     QList<Projet> projets;
 
     QLineEdit *recherche = nullptr;
