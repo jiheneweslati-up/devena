@@ -1,72 +1,14 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "equipe.h"
+
 #include <QMainWindow>
 #include <QVector>
 #include <QString>
 #include <QImage>
 #include <QPixmap>
-
-struct Participant
-{
-    int id;
-    QString nom;
-    QString prenom;
-    QString sexe;
-    QString competence;
-    int age;
-};
-
-class Equipe
-{
-public:
-    Equipe(int id = 0, const QString &nom = "");
-
-    int id() const
-    {
-        return m_id;
-    }
-
-    QString nom() const
-    {
-        return m_nom;
-    }
-
-    void setNom(const QString &nom)
-    {
-        m_nom = nom;
-    }
-
-    bool ajouter(const Participant &p);
-    bool supprimer(int id);
-    void vider();
-
-    int taille() const
-    {
-        return m_membres.size();
-    }
-
-    bool pleine() const
-    {
-        return m_membres.size() >= 6;
-    }
-
-    int hommes() const;
-    int femmes() const;
-    double ageMoyen() const;
-    bool aCompetence(const QString &c) const;
-    QString statut() const;
-
-    const QVector<Participant> &membres() const
-    {
-        return m_membres;
-    }
-
-private:
-    int m_id;
-    QString m_nom;
-    QVector<Participant> m_membres;
-};
+#include <QDate>
 
 class MainWindow : public QMainWindow
 {
@@ -78,7 +20,6 @@ public:
 
 private:
     void creerInterface();
-    void creerDonnees();
 
     int prochainIdEquipe() const;
     int prochainIdParticipant() const;
@@ -90,11 +31,9 @@ private:
     void ajouterEquipe();
     void modifierEquipe(int index);
     void supprimerEquipe(int index);
-
     void ajouterMembre(bool automatique, int indexEquipe = -1);
 
-    void voirMembres(int index);
-    void supprimerMembre(int index);
+    void voirEquipe(int index);
 
     QImage creerQR(const QString &code) const;
     void afficherQR(int index);
@@ -116,7 +55,6 @@ private:
 
     void rafraichir();
 
-    // NOUVEAUX
     void exporterPDF();
     void changerModeClair();
 
@@ -133,6 +71,7 @@ private:
     class QLabel *m_totalFemmes;
 
     class QWidget *m_side;
+    Equipe Etmp;
 
     QVector<Equipe> m_equipes;
     QVector<Participant> m_participants;

@@ -1,13 +1,16 @@
-QT += widgets printsupport
-
+QT += widgets printsupport sql
 CONFIG += c++17
 
 SOURCES += \
-    main.cpp \
-    mainwindow.cpp
-
+   equipe.cpp \
+   main.cpp \
+   mainwindow.cpp \
+   connection.cpp
 HEADERS += \
+    connection.h \
+    equipe.h \
     mainwindow.h
+    connection.h
 
 FORMS += \
     mainwindow.ui

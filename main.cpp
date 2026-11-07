@@ -1,12 +1,40 @@
+
 #include "mainwindow.h"
 #include <QApplication>
+#include <QMessageBox>
+#include "connection.h"
 
 int main(int argc, char *argv[])
 {
-    QApplication app(argc, argv);
+    QApplication a(argc, argv);
 
-    MainWindow window;
-    window.show();
+    // Connexion Singleton
+    Connection& C = Connection::createInstance();
+    bool test = C.createConnection();
 
-    return app.exec();
+    if (test)
+    {
+        QMessageBox::information(
+            nullptr,
+            "Connexion Oracle",
+            "Connexion réussie !"
+            );
+
+        // Création de la fenêtre après connexion
+        MainWindow w;
+        w.show();
+
+        return a.exec();
+    }
+    else
+    {
+        QMessageBox::critical(
+            nullptr,
+            QObject::tr("Base de données"),
+            QObject::tr("Echec de la connexion."),
+            QMessageBox::Cancel
+            );
+
+        return -1;
+    }
 }
