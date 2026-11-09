@@ -1,0 +1,39 @@
+# Dossiers de compilation Qt Creator
+build/
+build-*/
+debug/
+release/
+
+# Fichiers de configuration personnels de Qt Creator
+*.pro.user
+*.pro.user.*
+*.qbs.user
+*.qbs.user.*
+.qtcreator/
+.qtc_clangd/
+
+# Fichiers generes par qmake et la compilation
+Makefile*
+.qmake.stash
+*.o
+*.obj
+*.exe
+*.dll
+*.a
+*.lib
+*.pdb
+*.ilk
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+object_script.*
+
+# Fichiers systeme et editeurs
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.vs/
+*~
+*.autosave

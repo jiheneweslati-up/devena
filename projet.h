@@ -1,39 +1,55 @@
 #ifndef PROJET_H
 #define PROJET_H
 
+#include <QDate>
+#include <QList>
 #include <QString>
-#include <QStringList>
-#include <QSqlQueryModel>
 
+// Entite Projet : une ligne de la table PROJETS.
+// Ce fichier contient uniquement le CRUD.
 class Projet
 {
 public:
     Projet() = default;
+    Projet(const QString &id, const QString &titre, const QString &description,
+           const QString &thematique, const QString &statut,
+           const QDate &dateCreation, const QDate &dateLimite);
 
-    QString ID_Projet;
-    QString titre;
-    QString description;
-    QString thematique;
-    double noteFinale = 0.0;
+    // Accesseurs
+    QString id() const           { return m_id; }
+    QString titre() const        { return m_titre; }
+    QString description() const  { return m_description; }
+    QString thematique() const   { return m_thematique; }
+    QString statut() const       { return m_statut; }
+    QDate   dateCreation() const { return m_dateCreation; }
+    QDate   dateLimite() const   { return m_dateLimite; }
 
-    // Lecture seule : remplis par afficher() depuis EQUIPES.ID_PROJET,
-    // jamais enregistrés par ajouter() ou modifier().
-    QString equipes;
-    int nbEquipes = 0;
+    void setId(const QString &v)           { m_id = v; }
+    void setTitre(const QString &v)        { m_titre = v; }
+    void setDescription(const QString &v)  { m_description = v; }
+    void setThematique(const QString &v)   { m_thematique = v; }
+    void setStatut(const QString &v)       { m_statut = v; }
+    void setDateCreation(const QDate &v)   { m_dateCreation = v; }
+    void setDateLimite(const QDate &v)     { m_dateLimite = v; }
 
-    bool ajouter();
-    bool modifier();
-    bool supprimer(const QString &id);
-    QSqlQueryModel *afficher();
-
-    QString dernierErreur() const;
+    // CRUD : renvoie true si OK, sinon false avec le message Oracle dans *erreur
+    bool ajouter(QString *erreur = nullptr) const;                          // Create
+    static QList<Projet> lister(const QString &recherche = QString(),      // Read (liste)
+                                QString *erreur = nullptr);
+    static bool charger(const QString &id, Projet &resultat,                // Read (un seul)
+                        QString *erreur = nullptr);
+    static bool existe(const QString &id);                                  // Read (existe ?)
+    bool modifier(QString *erreur = nullptr) const;                         // Update
+    static bool supprimer(const QString &id, QString *erreur = nullptr);    // Delete
 
 private:
-    QString erreur;
-
-    bool controleSaisie();
-    bool existe(const QString &id);
-    QStringList equipesDuProjet(const QString &id);
+    QString m_id;
+    QString m_titre;
+    QString m_description;
+    QString m_thematique;
+    QString m_statut;
+    QDate   m_dateCreation;
+    QDate   m_dateLimite;
 };
 
 #endif // PROJET_H

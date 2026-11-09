@@ -1,242 +1,204 @@
 #include "projet.h"
 
-#include <QSqlQuery>
+#include <QObject>
+#include <QSqlDatabase>
 #include <QSqlError>
-#include <QRegularExpression>
-#include <QDebug>
+#include <QSqlQuery>
+#include <QVariant>
 
-// Le pilote ODBC Oracle ajoute des caractères parasites après le message :
-// on n'affiche que le code ORA, traduit quand il est connu.
-static QString messageOracle(const QSqlError &e)
+// Les dates passent par TO_DATE / TO_CHAR avec un format fixe : le resultat
+// ne depend donc ni des reglages regionaux de Windows ni de ceux d'Oracle.
+// Une date vide est envoyee comme chaine vide, qu'Oracle enregistre en NULL.
+static QString versOracle(const QDate &d)
 {
-    const QRegularExpressionMatch m = QRegularExpression("ORA-(\\d{5})").match(e.databaseText());
-    if (!m.hasMatch())
-        return "Erreur de base de données. Vérifiez la connexion Oracle.";
-
-    const QString code = m.captured(1);
-    if (code == "00001")
-        return "Cet identifiant existe déjà (ORA-00001).";
-    if (code == "02290")
-        return "Une contrainte de la table n'est pas respectée (ORA-02290).";
-    if (code == "02292")
-        return "Des équipes sont encore liées à ce projet (ORA-02292).";
-    if (code == "12899")
-        return "Une valeur est trop longue pour la colonne (ORA-12899).";
-    return "Erreur Oracle ORA-" + code + ".";
+    return d.isValid() ? d.toString("yyyy-MM-dd") : QString();
 }
 
-QString Projet::dernierErreur() const
+static QDate depuisOracle(const QVariant &v)
 {
-    return erreur;
+    return QDate::fromString(v.toString(), "yyyy-MM-dd");
 }
 
-bool Projet::controleSaisie()
+static void noterErreur(QString *erreur, const QSqlQuery &q)
 {
-    ID_Projet = ID_Projet.trimmed();
-    titre = titre.trimmed();
-    description = description.trimmed();
-    thematique = thematique.trimmed();
+    if (erreur)
+        *erreur = q.lastError().text();
+}
 
-    if (ID_Projet.isEmpty() || titre.isEmpty() || description.isEmpty()) {
-        erreur = "ID_Projet, Titre et Description sont obligatoires.";
+// Transaction : soit toutes les requetes passent, soit aucune n'est gardee
+// (ex. on ne supprime pas le projet si le detachement des equipes echoue).
+static bool debutTransaction()
+{
+    return QSqlDatabase::database().transaction();
+}
+
+static bool finTransaction(bool enCours, bool ok)
+{
+    if (!enCours)
+        return ok;
+    if (ok)
+        return QSqlDatabase::database().commit();
+    QSqlDatabase::database().rollback();
+    return false;
+}
+
+// ===== Lien avec la table EQUIPES =====
+// EQUIPES.ID_PROJET pointe vers le projet (cle FK_EQUIPE_PROJET).
+// Avant de supprimer un projet, on detache ses equipes (ID_PROJET remis a NULL),
+// sinon Oracle refuse la suppression avec ORA-02292.
+static bool detacherEquipes(const QString &idProjet, QString *erreur)
+{
+    QSqlQuery q;
+    q.prepare("UPDATE EQUIPES SET ID_PROJET = NULL WHERE ID_PROJET = :id");
+    q.bindValue(":id", idProjet);
+    if (!q.exec()) {
+        noterErreur(erreur, q);
         return false;
     }
-
-    if (ID_Projet.length() > 30) {
-        erreur = "ID_Projet ne peut pas dépasser 30 caractères.";
-        return false;
-    }
-
-    if (titre.length() > 80) {
-        erreur = "Le titre ne peut pas dépasser 80 caractères.";
-        return false;
-    }
-
-    if (description.length() > 400) {
-        erreur = "La description ne peut pas dépasser 400 caractères.";
-        return false;
-    }
-
-    const QStringList themes = {"IA", "Web", "IoT"};
-    if (!themes.contains(thematique)) {
-        erreur = "La thématique doit être IA, Web ou IoT.";
-        return false;
-    }
-
-    if (noteFinale < 0.0 || noteFinale > 20.0) {
-        erreur = "La note finale doit être comprise entre 0 et 20.";
-        return false;
-    }
-
     return true;
 }
 
+// Colonnes lues par lister() et charger(), toujours dans cet ordre
+static const char *COLONNES =
+    "SELECT ID_PROJET, TITRE, DESCRIPTION, THEMATIQUE, STATUT, "
+    "TO_CHAR(DATE_CREATION, 'YYYY-MM-DD'), TO_CHAR(DATE_LIMITE, 'YYYY-MM-DD') "
+    "FROM PROJETS ";
+
+static Projet lireLigne(const QSqlQuery &q)
+{
+    return Projet(q.value(0).toString(), q.value(1).toString(),
+                  q.value(2).toString(), q.value(3).toString(),
+                  q.value(4).toString(), depuisOracle(q.value(5)),
+                  depuisOracle(q.value(6)));
+}
+
+Projet::Projet(const QString &id, const QString &titre, const QString &description,
+               const QString &thematique, const QString &statut,
+               const QDate &dateCreation, const QDate &dateLimite)
+    : m_id(id), m_titre(titre), m_description(description),
+    m_thematique(thematique), m_statut(statut),
+    m_dateCreation(dateCreation), m_dateLimite(dateLimite)
+{
+}
+
+// ===== Create =====
+bool Projet::ajouter(QString *erreur) const
+{
+    QSqlQuery q;
+    q.prepare("INSERT INTO PROJETS (ID_PROJET, TITRE, DESCRIPTION, THEMATIQUE, STATUT, "
+              "DATE_CREATION, DATE_LIMITE) "
+              "VALUES (:id, :titre, :descr, :theme, :statut, "
+              "TO_DATE(:creation, 'YYYY-MM-DD'), TO_DATE(:limite, 'YYYY-MM-DD'))");
+    q.bindValue(":id", m_id);
+    q.bindValue(":titre", m_titre);
+    q.bindValue(":descr", m_description);
+    q.bindValue(":theme", m_thematique);
+    q.bindValue(":statut", m_statut);
+    q.bindValue(":creation", versOracle(m_dateCreation));
+    q.bindValue(":limite", versOracle(m_dateLimite));
+
+    if (!q.exec()) {
+        noterErreur(erreur, q);
+        return false;
+    }
+    return true;
+}
+
+// ===== Read : liste, avec recherche optionnelle =====
+// La recherche porte sur l'ID, le titre, la description, la thematique et le statut.
+QList<Projet> Projet::lister(const QString &recherche, QString *erreur)
+{
+    QList<Projet> liste;
+    QSqlQuery q;
+    const QString motif = recherche.trimmed();
+
+    if (motif.isEmpty()) {
+        q.prepare(QString(COLONNES) + "ORDER BY ID_PROJET");
+    } else {
+        q.prepare(QString(COLONNES) +
+                  "WHERE UPPER(ID_PROJET || ' ' || TITRE || ' ' || DESCRIPTION || ' ' "
+                  "|| THEMATIQUE || ' ' || STATUT) LIKE UPPER(:motif) "
+                  "ORDER BY ID_PROJET");
+        q.bindValue(":motif", "%" + motif + "%");
+    }
+
+    if (!q.exec()) {
+        noterErreur(erreur, q);
+        return liste;
+    }
+    while (q.next())
+        liste.append(lireLigne(q));
+    return liste;
+}
+
+// ===== Read : un seul projet =====
+bool Projet::charger(const QString &id, Projet &resultat, QString *erreur)
+{
+    QSqlQuery q;
+    q.prepare(QString(COLONNES) + "WHERE ID_PROJET = :id");
+    q.bindValue(":id", id);
+
+    if (!q.exec()) {
+        noterErreur(erreur, q);
+        return false;
+    }
+    if (!q.next()) {
+        if (erreur)
+            *erreur = QObject::tr("Aucun projet avec l'ID %1.").arg(id);
+        return false;
+    }
+    resultat = lireLigne(q);
+    return true;
+}
+
+// ===== Update =====
+bool Projet::modifier(QString *erreur) const
+{
+    QSqlQuery q;
+    q.prepare("UPDATE PROJETS SET TITRE = :titre, DESCRIPTION = :descr, "
+              "THEMATIQUE = :theme, STATUT = :statut, "
+              "DATE_CREATION = TO_DATE(:creation, 'YYYY-MM-DD'), "
+              "DATE_LIMITE = TO_DATE(:limite, 'YYYY-MM-DD') "
+              "WHERE ID_PROJET = :id");
+    q.bindValue(":titre", m_titre);
+    q.bindValue(":descr", m_description);
+    q.bindValue(":theme", m_thematique);
+    q.bindValue(":statut", m_statut);
+    q.bindValue(":creation", versOracle(m_dateCreation));
+    q.bindValue(":limite", versOracle(m_dateLimite));
+    q.bindValue(":id", m_id);
+
+    if (!q.exec()) {
+        noterErreur(erreur, q);
+        return false;
+    }
+    return true;
+}
+
+// ===== Delete =====
+// Les equipes du projet sont d'abord detachees (voir detacherEquipes),
+// le tout dans une transaction : si une etape echoue, rien n'est change.
+bool Projet::supprimer(const QString &id, QString *erreur)
+{
+    const bool enCours = debutTransaction();
+
+    bool ok = detacherEquipes(id, erreur);
+    if (ok) {
+        QSqlQuery q;
+        q.prepare("DELETE FROM PROJETS WHERE ID_PROJET = :id");
+        q.bindValue(":id", id);
+        ok = q.exec();
+        if (!ok)
+            noterErreur(erreur, q);
+    }
+    return finTransaction(enCours, ok);
+}
+
+// ===== Read : le projet existe t il ? =====
 bool Projet::existe(const QString &id)
 {
-    QSqlQuery query;
-    query.prepare("SELECT 1 FROM projets WHERE UPPER(id_projet) = UPPER(:id)");
-    query.bindValue(":id", id);
-
-    if (!query.exec()) {
-        erreur = messageOracle(query.lastError());
-        qDebug() << "Échec de la vérification du projet :" << query.lastError().text();
-        return false;
-    }
-
-    return query.next();
-}
-
-QStringList Projet::equipesDuProjet(const QString &id)
-{
-    QStringList noms;
-
-    QSqlQuery query;
-    query.prepare("SELECT nom_equipe FROM equipes WHERE id_projet = :id ORDER BY nom_equipe");
-    query.bindValue(":id", id);
-
-    if (!query.exec()) {
-        erreur = messageOracle(query.lastError());
-        qDebug() << "Échec de la lecture des équipes du projet :" << query.lastError().text();
-        return noms;
-    }
-
-    while (query.next())
-        noms.append(query.value(0).toString());
-
-    return noms;
-}
-
-bool Projet::ajouter()
-{
-    erreur.clear();
-
-    if (!controleSaisie())
-        return false;
-
-    const bool dejaPresent = existe(ID_Projet);
-    if (!erreur.isEmpty())
-        return false;
-    if (dejaPresent) {
-        erreur = "Cet ID_Projet existe déjà.";
-        return false;
-    }
-
-    QSqlQuery query;
-    query.prepare(
-        "INSERT INTO projets (id_projet, titre, description, thematique, note_finale) "
-        "VALUES (:id, :titre, :description, :thematique, :note)"
-        );
-    query.bindValue(":id", ID_Projet);
-    query.bindValue(":titre", titre);
-    query.bindValue(":description", description);
-    query.bindValue(":thematique", thematique);
-    query.bindValue(":note", noteFinale);
-
-    if (!query.exec()) {
-        erreur = messageOracle(query.lastError());
-        qDebug() << "Échec de l'ajout du projet :" << query.lastError().text();
-        return false;
-    }
-
-    return true;
-}
-
-bool Projet::modifier()
-{
-    erreur.clear();
-
-    if (!controleSaisie())
-        return false;
-
-    QSqlQuery query;
-    query.prepare(
-        "UPDATE projets "
-        "SET titre = :titre, description = :description, "
-        "thematique = :thematique, note_finale = :note "
-        "WHERE id_projet = :id"
-        );
-    query.bindValue(":titre", titre);
-    query.bindValue(":description", description);
-    query.bindValue(":thematique", thematique);
-    query.bindValue(":note", noteFinale);
-    query.bindValue(":id", ID_Projet);
-
-    if (!query.exec()) {
-        erreur = messageOracle(query.lastError());
-        qDebug() << "Échec de la modification du projet :" << query.lastError().text();
-        return false;
-    }
-
-    if (query.numRowsAffected() == 0) {
-        erreur = "Le projet à modifier est introuvable.";
-        return false;
-    }
-
-    return true;
-}
-
-bool Projet::supprimer(const QString &id)
-{
-    erreur.clear();
-
-    const QStringList equipesLiees = equipesDuProjet(id);
-    if (!erreur.isEmpty())
-        return false;
-    if (!equipesLiees.isEmpty()) {
-        erreur = "Ce projet est développé par : " + equipesLiees.join(", ") + ".\n"
-                 "Affectez d'abord ces équipes à un autre projet (module Équipes).";
-        return false;
-    }
-
-    QSqlQuery query;
-    query.prepare("DELETE FROM projets WHERE id_projet = :id");
-    query.bindValue(":id", id);
-
-    if (!query.exec()) {
-        erreur = messageOracle(query.lastError());
-        qDebug() << "Échec de la suppression du projet :" << query.lastError().text();
-        return false;
-    }
-
-    if (query.numRowsAffected() == 0) {
-        erreur = "Le projet à supprimer est introuvable.";
-        return false;
-    }
-
-    return true;
-}
-
-QSqlQueryModel *Projet::afficher()
-{
-    erreur.clear();
-
-    QSqlQueryModel *model = new QSqlQueryModel();
-    model->setQuery(
-        "SELECT p.id_projet, p.titre, p.description, p.thematique, p.note_finale, "
-        "COUNT(e.id_equipe), "
-        "LISTAGG(e.nom_equipe, ', ') WITHIN GROUP (ORDER BY e.nom_equipe) "
-        "FROM projets p "
-        "LEFT JOIN equipes e ON e.id_projet = p.id_projet "
-        "GROUP BY p.id_projet, p.titre, p.description, p.thematique, p.note_finale "
-        "ORDER BY p.id_projet"
-        );
-
-    if (model->lastError().isValid()) {
-        erreur = messageOracle(model->lastError());
-        qDebug() << "Échec de l'affichage des projets :" << model->lastError().text();
-        return model;
-    }
-
-    while (model->canFetchMore())
-        model->fetchMore();
-
-    model->setHeaderData(0, Qt::Horizontal, "ID Projet");
-    model->setHeaderData(1, Qt::Horizontal, "Titre");
-    model->setHeaderData(2, Qt::Horizontal, "Description");
-    model->setHeaderData(3, Qt::Horizontal, "Thématique");
-    model->setHeaderData(4, Qt::Horizontal, "Note finale");
-    model->setHeaderData(5, Qt::Horizontal, "Nb équipes");
-    model->setHeaderData(6, Qt::Horizontal, "Équipes");
-
-    return model;
+    QSqlQuery q;
+    q.prepare("SELECT COUNT(*) FROM PROJETS WHERE ID_PROJET = :id");
+    q.bindValue(":id", id);
+    return q.exec() && q.next() && q.value(0).toInt() > 0;
 }

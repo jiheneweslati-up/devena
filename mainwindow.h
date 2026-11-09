@@ -1,14 +1,18 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
-#include "equipe.h"
-
+#include <QColor>
+#include <QList>
 #include <QMainWindow>
-#include <QVector>
-#include <QString>
-#include <QImage>
-#include <QPixmap>
-#include <QDate>
+#include <QPair>
+
+#include "projet.h"
+
+QT_BEGIN_NAMESPACE
+namespace Ui {
+class MainWindow;
+}
+QT_END_NAMESPACE
 
 class MainWindow : public QMainWindow
 {
@@ -18,65 +22,58 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
-private:
-    void creerInterface();
+protected:
+    // Sert a dessiner la courbe des statistiques dans ui->graphique
+    bool eventFilter(QObject *objet, QEvent *evenement) override;
 
-    int prochainIdEquipe() const;
-    int prochainIdParticipant() const;
-
-    int meilleureEquipe(const Participant &p) const;
-
-    void affecterAutomatiquement();
-
-    void ajouterEquipe();
-    void modifierEquipe(int index);
-    void supprimerEquipe(int index);
-    void ajouterMembre(bool automatique, int indexEquipe = -1);
-
-    void voirEquipe(int index);
-
-    QImage creerQR(const QString &code) const;
-    void afficherQR(int index);
-
-    QImage creerBadge(const Equipe &e) const;
-    void afficherBadge(int index);
-
-    void afficherEquipes();
-
-    QPixmap creerCourbe() const;
-    void afficherStatistiques();
-
-    void filtrer();
-
-    void afficherNotification(
-        const QString &texte,
-        bool succes = true
-        );
-
+private slots:
+    // Boutons CRUD (appellent les fonctions de Projet)
+    void ajouterProjet();
+    void voirProjet(const QString &id);
+    void modifierProjet(const QString &id);
+    void supprimerProjet(const QString &id);
     void rafraichir();
 
-    void exporterPDF();
-    void changerModeClair();
+    // Autres fonctionnalites
+    void annulerDerniereAction();
+    void exporterPdf();
+    void basculerTheme();
 
 private:
-    class QTableWidget *m_table;
-    class QLineEdit *m_recherche;
-    class QComboBox *m_filtre;
-    class QLabel *m_notification;
-    class QLabel *m_courbe;
+    // Une action enregistree pour pouvoir l'annuler avec Ctrl+Z
+    struct Action {
+        enum Type { Ajout, Modification, Suppression } type;
+        Projet avant;   // etat avant l'action (Modification, Suppression)
+        Projet apres;   // etat apres l'action (Ajout)
+    };
 
-    class QLabel *m_totalEquipes;
-    class QLabel *m_totalMembres;
-    class QLabel *m_totalHommes;
-    class QLabel *m_totalFemmes;
+    // Couleurs du theme courant (sombre ou clair)
+    struct Couleurs {
+        QColor fond, panneau, carte, bordure, texte, discret, accent, accentTexte, badge, danger;
+    };
 
-    class QWidget *m_side;
-    Equipe Etmp;
+    // Interface
+    void construireMenu();
+    void configurerTableau();
+    void remplirTableau(const QList<Projet> &projets);
+    bool ouvrirFormulaire(Projet &p, bool modification);   // fenetre Ajouter / Modifier
+    QString prochainId() const;
+    void empiler(const Action &a);
 
-    QVector<Equipe> m_equipes;
-    QVector<Participant> m_participants;
+    // Statistiques
+    void mettreAJourStatistiques();
+    void dessinerGraphique();
 
-    bool m_modeClair = false;
+    // Theme
+    Couleurs couleurs() const;
+    QString feuilleDeStyle() const;
+    void appliquerTheme();
+
+    Ui::MainWindow *ui;
+    QList<Projet> m_projetsAffiches;
+    QList<Action> m_historique;
+    QList<QPair<QString, int>> m_statsThematique;   // points de la courbe
+    bool m_sombre = true;
 };
 
 #endif // MAINWINDOW_H

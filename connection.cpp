@@ -1,40 +1,29 @@
 #include "connection.h"
 
-// Constructeur
-Connection::Connection()
+#include <QSqlDatabase>
+#include <QSqlError>
+
+// A ADAPTER : nom de la source de donnees ODBC (DSN) creee dans
+// "Sources de donnees ODBC (64 bits)" de Windows, et ton compte Oracle.
+static const char *NOM_DSN      = "devena";
+static const char *UTILISATEUR  = "devena";
+static const char *MOT_DE_PASSE = "2006";
+
+bool Connection::ouvrir()
 {
-    db = QSqlDatabase::addDatabase("QODBC");
-}
+    QSqlDatabase db = QSqlDatabase::addDatabase("QODBC");
+    db.setDatabaseName(NOM_DSN);
+    db.setUserName(UTILISATEUR);
+    db.setPassword(MOT_DE_PASSE);
 
-// Destructeur
-Connection::~Connection()
-{
-    if(db.isOpen())
-
-    db.close();
-}
-
-// Singleton Pattern
-Connection& Connection::createInstance()
-{
-    static Connection instance;
-    return instance;
-}
-
-// Fonction de Connexion
-bool Connection::createConnection()
-{
-    qDebug() << "Drivers ODBC disponibles :" << QSqlDatabase::drivers();
-
-    db.setDatabaseName("Source_ProjetCpp");
-    db.setUserName("devena");
-    db.setPassword("esprit2026");
-
-    if(db.open()){
-        qDebug() << "Connexion établie";
-        return true;
+    if (!db.open()) {
+        m_erreur = db.lastError().text();
+        return false;
     }
+    return true;
+}
 
-    qDebug() << "Echec de la connexion :" << db.lastError().text();
-    return false;
+void Connection::fermer()
+{
+    QSqlDatabase::database().close();
 }
