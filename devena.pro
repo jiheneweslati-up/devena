@@ -1,17 +1,20 @@
-QT += core gui widgets sql
-
+QT += widgets printsupport sql
 CONFIG += c++17
 
 SOURCES += \
-    connexion.cpp \
-    main.cpp \
-    mainwindow.cpp \
-    projet.cpp
-
+   equipe.cpp \
+   main.cpp \
+   mainwindow.cpp \
+   connection.cpp
 HEADERS += \
-    connexion.h \
-    mainwindow.h \
-    projet.h
+    connection.h \
+    equipe.h \
+    mainwindow.h
+    connection.h
 
-RESOURCES += \
-    resources.qrc
+FORMS += \
+    mainwindow.ui
+
+qnx: target.path = /tmp/$${TARGET}/bin
+else: unix:!android: target.path = /opt/$${TARGET}/bin
+!isEmpty(target.path): INSTALLS += target

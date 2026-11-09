@@ -1,44 +1,82 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include "equipe.h"
+
 #include <QMainWindow>
-#include <QList>
+#include <QVector>
 #include <QString>
-
-#include "projet.h"
-
-class QListWidget;
-class QLineEdit;
-class QLabel;
+#include <QImage>
+#include <QPixmap>
+#include <QDate>
 
 class MainWindow : public QMainWindow
 {
+    Q_OBJECT
+
 public:
     explicit MainWindow(QWidget *parent = nullptr);
+    ~MainWindow() override;
 
 private:
     void creerInterface();
-    void chargerProjets();
-    void afficherListe();
-    void ajouterProjet();
-    void afficherProjet(int index);
-    void modifierProjet(int index);
-    void supprimerProjet(int index);
-    void definirGagnant(int index);
+
+    int prochainIdEquipe() const;
+    int prochainIdParticipant() const;
+
+    int meilleureEquipe(const Participant &p) const;
+
+    void affecterAutomatiquement();
+
+    void ajouterEquipe();
+    void modifierEquipe(int index);
+    void supprimerEquipe(int index);
+    void ajouterMembre(bool automatique, int indexEquipe = -1);
+
+    void voirEquipe(int index);
+
+    QImage creerQR(const QString &code) const;
+    void afficherQR(int index);
+
+    QImage creerBadge(const Equipe &e) const;
+    void afficherBadge(int index);
+
+    void afficherEquipes();
+
+    QPixmap creerCourbe() const;
     void afficherStatistiques();
-    void afficherCelebration(const QString &nomProjet);
+
+    void filtrer();
+
+    void afficherNotification(
+        const QString &texte,
+        bool succes = true
+        );
+
+    void rafraichir();
+
+    void exporterPDF();
+    void changerModeClair();
 
 private:
-    Projet gestionProjet;
-    QList<Projet> projets;
+    class QTableWidget *m_table;
+    class QLineEdit *m_recherche;
+    class QComboBox *m_filtre;
+    class QLabel *m_notification;
+    class QLabel *m_courbe;
 
-    QLineEdit *recherche = nullptr;
-    QListWidget *listeProjets = nullptr;
+    class QLabel *m_totalEquipes;
+    class QLabel *m_totalMembres;
+    class QLabel *m_totalHommes;
+    class QLabel *m_totalFemmes;
 
-    QLabel *statProjets = nullptr;
-    QLabel *statNombre = nullptr;
-    QLabel *statDomaines = nullptr;
-    QLabel *statGagnant = nullptr;
+    class QWidget *m_side;
+    Equipe Etmp;
+
+    QVector<Equipe> m_equipes;
+    QVector<Participant> m_participants;
+
+    bool m_modeClair = false;
 };
 
 #endif // MAINWINDOW_H
