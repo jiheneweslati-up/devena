@@ -1,2503 +1,827 @@
 #include "mainwindow.h"
+#include "ui_mainwindow.h"
 
-#include <QAbstractItemView>
+#include <QApplication>
+#include <QButtonGroup>
 #include <QComboBox>
+#include <QDateEdit>
 #include <QDialog>
+#include <QEvent>
 #include <QFileDialog>
 #include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QHeaderView>
-#include <QImage>
-#include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
-#include <QPainter>
-#include <QPixmap>
-#include <QPushButton>
-#include <QTableWidget>
-#include <QTableWidgetItem>
-#include <QTimer>
-#include <QVBoxLayout>
-#include <QStringList>
-#include <QFont>
-#include <QColor>
-#include <QFormLayout>
-#include <QDialogButtonBox>
-#include <QSpinBox>
-#include <QRadioButton>
-#include <QGroupBox>
-#include <QCheckBox>
-#include <QPointF>
-#include <QtMath>
-#include <QVector>
-#include <QPdfWriter>
-#include <QPageSize>
 #include <QPageLayout>
-#include <QBrush>
-#include <QDateEdit>
-#include <QDate>
-#include <QDebug>
-#include <QScrollBar>
-#include <QSqlQueryModel>
-#include <QSqlError>
-#include <QDateTime>
-/* =====================================================
-   STYLE DARK
-   ===================================================== */
+#include <QPageSize>
+#include <QPainter>
+#include <QPainterPath>
+#include <QPdfWriter>
+#include <QPlainTextEdit>
+#include <QPushButton>
+#include <QRegularExpression>
+#include <QRegularExpressionValidator>
+#include <QShortcut>
+#include <QSqlQuery>
+#include <QStandardPaths>
+#include <QTextDocument>
+#include <QToolButton>
+#include <QVBoxLayout>
+#include <QVariant>
 
-static const char *STYLE_DARK = R"(
-QWidget {
-    background: #050B14;
-    color: #EAF2FF;
-    font-family: "Segoe UI";
-    font-size: 13px;
-}
+// Index des colonnes du tableau
+enum Colonne {
+    ColId, ColTitre, ColDescription, ColThematique, ColStatut,
+    ColCreation, ColLimite, ColActions, NbColonnes
+};
 
-QMainWindow {
-    background: #050B14;
-}
-
-QPushButton {
-    background: #0B1726;
-    color: #DCE7F4;
-    border: 1px solid #243A52;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-weight: bold;
-}
-
-QPushButton:hover {
-    background: #10283D;
-    border-color: #18D9EF;
-}
-
-QPushButton#primary {
-    background: #18D9EF;
-    color: #03212A;
-    border-color: #18D9EF;
-}
-
-QLineEdit,
-QComboBox {
-    background: #091522;
-    color: white;
-    border: 1px solid #243A52;
-    border-radius: 8px;
-    padding: 9px;
-    font-family: "Segoe UI";
-    font-size: 14px;
-}
-
-QLineEdit:focus,
-QComboBox:focus {
-    border: 1px solid #18D9EF;
-}
-
-QComboBox QAbstractItemView {
-    background: #091522;
-    color: white;
-    selection-background-color: #10394B;
-    selection-color: white;
-}
-
-QTableWidget {
-    background: #081421;
-    alternate-background-color: #0B1828;
-    border: 1px solid #1A3046;
-    gridline-color: #15283B;
-    border-radius: 10px;
-}
-
-QTableWidget::item {
-    padding: 8px;
-}
-
-QTableWidget::item:selected {
-    background: #0C3042;
-}
-
-QHeaderView::section {
-    background: #091522;
-    color: #18D9EF;
-    border: 0;
-    padding: 11px;
-    font-weight: bold;
-}
-
-QFrame#statCard {
-    background: #091522;
-    border: 1px solid #1C3045;
-    border-radius: 10px;
-}
-
-QPushButton#iconButton {
-    font-size: 17px;
-    padding: 2px;
-}
-)";
-
-/* =====================================================
-   STYLE LIGHT
-   ===================================================== */
-
-static const char *STYLE_LIGHT = R"(
-QWidget {
-    background: #F4F7FB;
-    color: #182433;
-    font-family: "Segoe UI";
-    font-size: 13px;
-}
-
-QMainWindow {
-    background: #F4F7FB;
-}
-
-QPushButton {
-    background: #FFFFFF;
-    color: #243447;
-    border: 1px solid #C8D3E0;
-    border-radius: 8px;
-    padding: 8px 12px;
-    font-weight: bold;
-}
-
-QPushButton:hover {
-    background: #EAFBFD;
-    border-color: #18BFD4;
-}
-
-QPushButton#primary {
-    background: #18D9EF;
-    color: #03212A;
-    border-color: #18D9EF;
-}
-
-// Style des champs de saisie
-QLineEdit,
-QComboBox {
-    background: #FFFFFF;
-    color: #182433;
-    border: 1px solid #C8D3E0;
-    border-radius: 8px;
-    padding: 9px;
-    font-family: "Segoe UI";
-    font-size: 14px;
-}
-
-QLineEdit:focus,
-QComboBox:focus {
-    border: 1px solid #18BFD4;
-}
-
-QComboBox QAbstractItemView {
-    background: #FFFFFF;
-    color: #182433;
-    selection-background-color: #DDF7FA;
-    selection-color: #182433;
-}
-QTableWidget {
-    background: #FFFFFF;
-    alternate-background-color: #F1F6FA;
-    color: #182433;
-    border: 1px solid #D3DDE8;
-    gridline-color: #DCE4EC;
-    border-radius: 10px;
-}
-
-QTableWidget::item {
-    padding: 8px;
-}
-
-QTableWidget::item:selected {
-    background: #DDF7FA;
-    color: #182433;
-}
-
-QHeaderView::section {
-    background: #EAF1F7;
-    color: #087F91;
-    border: 0;
-    padding: 11px;
-    font-weight: bold;
-}
-
-QFrame#statCard {
-    background: #FFFFFF;
-    border: 1px solid #D3DDE8;
-    border-radius: 10px;
-}
-
-QPushButton#iconButton {
-    font-size: 17px;
-    padding: 2px;
-}
-)";
-
-/* =====================================================
-   SCORE
-   ===================================================== */
-
-double scoreEquipe(const Equipe &e, const Participant &p)
+static QString ouTiret(const QString &s)
 {
-    if (e.pleine())
-        return -1000000.0;
-
-    double score = (6 - e.taille()) * 6.0;
-
-    int h = e.hommes();
-    int f = e.femmes();
-
-    if (p.sexe.compare("Homme", Qt::CaseInsensitive) == 0)
-        ++h;
-
-    if (p.sexe.compare("Femme", Qt::CaseInsensitive) == 0)
-        ++f;
-
-    int diffSexe = qAbs(h - f);
-
-    if (diffSexe == 0)
-        score += 40;
-    else if (diffSexe == 1)
-        score += 30;
-    else if (diffSexe == 2)
-        score += 15;
-    else
-        score -= 20;
-
-    if (e.aCompetence(p.competence))
-        score -= 10;
-    else
-        score += 35;
-
-    if (!e.membres().isEmpty())
-    {
-        double diffAge = qAbs(e.ageMoyen() - p.age);
-
-        if (diffAge <= 2)
-            score += 25;
-        else if (diffAge <= 5)
-            score += 15;
-        else
-            score -= diffAge;
-    }
-
-    return score;
+    return s.trimmed().isEmpty() ? QStringLiteral("-") : s;
 }
 
-/* =====================================================
-   CONSTRUCTEUR
-   ===================================================== */
+static QString dateOuTiret(const QDate &d)
+{
+    return d.isValid() ? d.toString("dd/MM/yyyy") : QStringLiteral("-");
+}
+
 MainWindow::MainWindow(QWidget *parent)
-    : QMainWindow(parent),
-    m_table(nullptr),
-    m_recherche(nullptr),
-    m_filtre(nullptr),
-    m_notification(nullptr),
-    m_courbe(nullptr),
-    m_totalEquipes(nullptr),
-    m_totalMembres(nullptr),
-    m_totalHommes(nullptr),
-    m_totalFemmes(nullptr),
-    m_side(nullptr),
-    m_modeClair(false)
+    : QMainWindow(parent)
+    , ui(new Ui::MainWindow)
 {
-    resize(1400, 900);
+    ui->setupUi(this);
 
-    setWindowTitle("Devena - Gestion des equipes");
+    construireMenu();
+    configurerTableau();
 
-    setStyleSheet(STYLE_DARK);
+    connect(ui->boutonAjouter,     &QPushButton::clicked, this, &MainWindow::ajouterProjet);
+    connect(ui->boutonExporterPdf, &QPushButton::clicked, this, &MainWindow::exporterPdf);
+    connect(ui->boutonTheme,       &QPushButton::clicked, this, &MainWindow::basculerTheme);
+    connect(ui->boutonAnnuler,     &QPushButton::clicked, this, &MainWindow::annulerDerniereAction);
+    connect(ui->lineEditRecherche, &QLineEdit::textChanged, this, &MainWindow::rafraichir);
 
-    creerInterface();
+    auto *raccourci = new QShortcut(QKeySequence::Undo, this);
+    connect(raccourci, &QShortcut::activated, this, &MainWindow::annulerDerniereAction);
+    ui->boutonAnnuler->setEnabled(false);
 
+    // La courbe des statistiques est dessinee par eventFilter()
+    ui->graphique->installEventFilter(this);
+
+    appliquerTheme();
     rafraichir();
 }
 
 MainWindow::~MainWindow()
 {
+    delete ui;
 }
-/* =====================================================
-   INTERFACE
-   ===================================================== */
 
-void MainWindow::creerInterface()
+// Menu de gauche : seule la page Projets est developpee ici,
+// les autres modules ont une page d'attente a remplacer par ceux de l'equipe.
+void MainWindow::construireMenu()
 {
-    QWidget *central = new QWidget(this);
-    setCentralWidget(central);
+    auto *groupe = new QButtonGroup(this);
+    groupe->setExclusive(true);
 
-    QHBoxLayout *root = new QHBoxLayout(central);
-    root->setContentsMargins(0, 0, 0, 0);
-    root->setSpacing(0);
+    const QList<QPushButton *> boutons = {
+        ui->boutonTableauBord, ui->boutonEmployee, ui->boutonParticipants,
+        ui->boutonEquipes, ui->boutonProjets, ui->boutonEvaluations, ui->boutonParametres};
 
-    /* ================= SIDEBAR ================= */
+    for (QPushButton *b : boutons) {
+        groupe->addButton(b);
+        b->setCursor(Qt::PointingHandCursor);
 
-    m_side = new QWidget;
-    m_side->setFixedWidth(220);
-
-    m_side->setStyleSheet(
-        "QWidget{"
-        "background:#030914;"
-        "border-right:1px solid #17283A;"
-        "}"
-        "QPushButton{"
-        "text-align:left;"
-        "border:0;"
-        "background:transparent;"
-        "color:#718198;"
-        "padding:12px;"
-        "}"
-        "QPushButton#active{"
-        "background:#092A3D;"
-        "color:#18D9EF;"
-        "border:1px solid #18D9EF;"
-        "}"
-        );
-
-    QVBoxLayout *sl = new QVBoxLayout(m_side);
-    sl->setContentsMargins(15, 22, 15, 18);
-
-    QLabel *logo = new QLabel("◆ Devena");
-    logo->setObjectName("logoLabel");
-    logo->setStyleSheet(
-        "color:#18D9EF;"
-        "font-size:27px;"
-        "font-weight:bold;"
-        );
-
-    sl->addWidget(logo);
-
-    QLabel *slogan = new QLabel("Connecter les talents,\nconstruire l'avenir");
-    slogan->setObjectName("sloganLabel");
-    slogan->setStyleSheet("color:#718198;");
-
-    sl->addWidget(slogan);
-    sl->addSpacing(22);
-
-    QStringList menu;
-    menu
-        << "Tableau de bord"
-        << "Employes"
-        << "Participants"
-        << "Equipe"
-        << "Projet"
-        << "Evaluation"
-        << "Parametre";
-
-    for (int i = 0; i < menu.size(); ++i)
-    {
-        QPushButton *b = new QPushButton(menu[i]);
-
-        if (i == 3)
-        {
-            b->setObjectName("active");
+        QWidget *page = ui->pageProjets;
+        if (b != ui->boutonProjets) {
+            page = new QWidget;
+            auto *l = new QVBoxLayout(page);
+            auto *texte = new QLabel(tr("Module « %1 » à intégrer.")
+                                         .arg(b->text().section(' ', -1)), page);
+            texte->setProperty("role", "sousTitre");
+            texte->setAlignment(Qt::AlignCenter);
+            l->addWidget(texte);
+            ui->stackedWidget->addWidget(page);
         }
-        else
-        {
-            b->setEnabled(false);
-        }
-
-        sl->addWidget(b);
+        connect(b, &QPushButton::clicked, this, [this, page] {
+            ui->stackedWidget->setCurrentWidget(page);
+        });
     }
-
-    sl->addStretch();
-
-    QLabel *footer = new QLabel("Hack today\nBuild tomorrow");
-    footer->setObjectName("footerLabel");
-    footer->setAlignment(Qt::AlignCenter);
-    footer->setStyleSheet("color:#3A4D65;");
-
-    sl->addWidget(footer);
-    root->addWidget(m_side);
-
-    /* ================= CORPS ================= */
-
-    QWidget *body = new QWidget;
-    QVBoxLayout *v = new QVBoxLayout(body);
-    v->setContentsMargins(25, 20, 25, 18);
-
-    /* ================= HEADER ================= */
-
-    QHBoxLayout *header = new QHBoxLayout;
-    QVBoxLayout *titles = new QVBoxLayout;
-
-    QLabel *title = new QLabel("Equipes");
-    title->setObjectName("titleLabel");
-    title->setStyleSheet(
-        "font-size:30px;"
-        "font-weight:bold;"
-        "color:white;"
-        );
-
-    QLabel *subtitle = new QLabel("Gestion moderne et intelligente des equipes");
-    subtitle->setObjectName("subtitleLabel");
-    subtitle->setStyleSheet("color:#7D8BA3;");
-
-    titles->addWidget(title);
-    titles->addWidget(subtitle);
-
-    header->addLayout(titles);
-    header->addStretch();
-
-    QLabel *user = new QLabel("Alaa\nParticipant");
-    user->setObjectName("userLabel");
-
-    header->addWidget(user);
-    v->addLayout(header);
-
-    /* ================= ACTIONS (Boutons 3la l'imin) ================= */
-
-    QHBoxLayout *actions = new QHBoxLayout;
-
-    QPushButton *addTeam = new QPushButton("+ Ajouter equipe");
-    QPushButton *automatic = new QPushButton("⚡ Affectation automatique");
-    QPushButton *exportPDF = new QPushButton("📄 Exporter PDF");
-    QPushButton *lightMode = new QPushButton("☀ Mode clair");
-
-    addTeam->setObjectName("primary");
-    automatic->setObjectName("primary");
-
-    exportPDF->setMinimumHeight(38);
-    lightMode->setMinimumHeight(38);
-
-    actions->addStretch();
-    actions->addWidget(addTeam);
-    actions->addWidget(automatic);
-    actions->addWidget(exportPDF);
-    actions->addWidget(lightMode);
-
-    v->addLayout(actions);
-
-    connect(addTeam, &QPushButton::clicked, this, [this]() { ajouterEquipe(); });
-    connect(automatic, &QPushButton::clicked, this, [this]() { affecterAutomatiquement(); });
-    connect(exportPDF, &QPushButton::clicked, this, [this]() { exporterPDF(); });
-    connect(lightMode, &QPushButton::clicked, this, [this]() { changerModeClair(); });
-
-    /* ================= NOTIFICATION ================= */
-
-    m_notification = new QLabel;
-    m_notification->setAlignment(Qt::AlignCenter);
-    m_notification->hide();
-
-    v->addWidget(m_notification);
-
-    /* ================= RECHERCHE ================= */
-
-    QHBoxLayout *filters = new QHBoxLayout;
-
-    m_recherche = new QLineEdit;
-    m_recherche->setPlaceholderText("🔎 Rechercher une equipe...");
-
-    m_filtre = new QComboBox;
-    m_filtre->addItems(
-        QStringList()
-        << "Toutes les equipes"
-        << "Equipe avec membres"
-        << "Equipe vide"
-        << "Equipe complete"
-        );
-
-    filters->addWidget(m_recherche, 1);
-    filters->addWidget(m_filtre);
-
-    v->addLayout(filters);
-
-    connect(m_recherche, &QLineEdit::textChanged, this, [this](const QString &) { filtrer(); });
-    connect(m_filtre, &QComboBox::currentTextChanged, this, [this](const QString &) { filtrer(); });
-
-    /* ================= TABLE ================= */
-
-    QLabel *tableTitle = new QLabel("Tableau des equipes");
-    tableTitle->setObjectName("tableTitleLabel");
-    tableTitle->setStyleSheet(
-        "font-size:19px;"
-        "font-weight:bold;"
-        "color:white;"
-        );
-
-    v->addWidget(tableTitle);
-    m_table = new QTableWidget;
-    m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    m_table->setColumnCount(9);
-
-    m_table->setHorizontalHeaderLabels(
-        QStringList()
-        << "ID Equipe"
-        << "Nom Equipe"
-        << "Nb_membre"
-        << "Capacite_max"
-        << "Sexe"
-        << "Age"
-        << "Competence"
-        << "Date_creation"
-        << "Actions"
-        );
-    m_table->setSelectionBehavior(QAbstractItemView::SelectRows);
-    m_table->setSelectionMode(QAbstractItemView::SingleSelection);
-    m_table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-    m_table->verticalHeader()->setVisible(false);
-    m_table->horizontalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-    m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_table->setColumnWidth(7, 120); // Date de creation
-    m_table->setColumnWidth(8, 300); // Actions
-    v->addWidget(m_table, 1);
-
-    /* ================= STATISTIQUES ================= */
-
-    QLabel *statsTitle = new QLabel("Statistiques");
-    statsTitle->setObjectName("statsTitleLabel");
-    statsTitle->setStyleSheet(
-        "font-size:20px;"
-        "font-weight:bold;"
-        "color:white;"
-        );
-
-    v->addWidget(statsTitle);
-
-    m_courbe = new QLabel;
-    m_courbe->setMinimumHeight(165);
-    m_courbe->setAlignment(Qt::AlignCenter);
-
-    v->addWidget(m_courbe);
-
-    QHBoxLayout *stats = new QHBoxLayout;
-
-    auto statCard = [](const QString &name, QLabel **value) {
-        QFrame *box = new QFrame;
-        box->setObjectName("statCard");
-
-        QVBoxLayout *l = new QVBoxLayout(box);
-
-        QLabel *n = new QLabel(name);
-        n->setStyleSheet("color:#7D8BA3;");
-
-        *value = new QLabel("0");
-        (*value)->setStyleSheet(
-            "color:#18D9EF;"
-            "font-size:21px;"
-            "font-weight:bold;"
-            );
-
-        l->addWidget(n);
-        l->addWidget(*value);
-
-        return box;
-    };
-
-    stats->addWidget(statCard("Equipes", &m_totalEquipes));
-    stats->addWidget(statCard("Membres", &m_totalMembres));
-    stats->addWidget(statCard("Hommes", &m_totalHommes));
-    stats->addWidget(statCard("Femmes", &m_totalFemmes));
-
-    v->addLayout(stats);
-    root->addWidget(body, 1);
+    ui->stackedWidget->setCurrentWidget(ui->pageProjets);
 }
 
-
-
-
-/* =====================================================
-   IDS
-   ===================================================== */
-
-int MainWindow::prochainIdEquipe() const
+void MainWindow::configurerTableau()
 {
-    int id = 0;
-    for (const Equipe &e : m_equipes)
-        id = qMax(id, e.id());
-    return id + 1;
-}
+    QTableWidget *t = ui->tableProjets;
+    t->setColumnCount(NbColonnes);
+    t->setHorizontalHeaderLabels({tr("ID Projet"), tr("Titre"), tr("Description"),
+                                  tr("Thématique"), tr("Statut"), tr("Date de création"),
+                                  tr("Date limite"), tr("Actions")});
+    t->verticalHeader()->setVisible(false);
+    t->verticalHeader()->setDefaultSectionSize(48);
+    t->setShowGrid(false);
+    t->setSelectionBehavior(QAbstractItemView::SelectRows);
+    t->setSelectionMode(QAbstractItemView::SingleSelection);
+    t->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    t->setFocusPolicy(Qt::NoFocus);
+    t->setWordWrap(false);
+    t->setTextElideMode(Qt::ElideRight);
 
-int MainWindow::prochainIdParticipant() const
-{
-    int id = 0;
-    for (const Participant &p : m_participants)
-        id = qMax(id, p.id);
-    return id + 1;
-}
+    QHeaderView *h = t->horizontalHeader();
+    h->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+    h->setHighlightSections(false);
+    h->setSectionResizeMode(QHeaderView::Fixed);
+    h->setSectionResizeMode(ColDescription, QHeaderView::Stretch);
+    const int largeurs[] = {95, 150, 0, 120, 130, 140, 120, 130};
+    for (int c = 0; c < NbColonnes; ++c)
+        if (c != ColDescription)
+            t->setColumnWidth(c, largeurs[c]);
 
-/* =====================================================
-   MEILLEURE EQUIPE
-   ===================================================== */
-
-int MainWindow::meilleureEquipe(const Participant &p) const
-{
-    int bestIndex = -1;
-    double bestScore = -1000000.0;
-
-    for (int i = 0; i < m_equipes.size(); ++i)
-    {
-        double score = scoreEquipe(m_equipes[i], p);
-        if (score > bestScore)
-        {
-            bestScore = score;
-            bestIndex = i;
-        }
-    }
-
-    return bestIndex;
-}
-
-/* =====================================================
-   AFFICHER NOTIFICATION
-   ===================================================== */
-
-void MainWindow::afficherNotification(const QString &texte, bool succes)
-{
-    m_notification->setText(texte);
-    m_notification->setStyleSheet(
-        succes
-            ? "background:#0A3A30;"
-              "color:#67F0B5;"
-              "border:1px solid #1BAA7A;"
-              "border-radius:8px;"
-              "padding:7px;"
-              "font-weight:bold;"
-
-            : "background:#421F28;"
-              "color:#FF8C99;"
-              "border:1px solid #C44858;"
-              "border-radius:8px;"
-              "padding:7px;"
-              "font-weight:bold;"
-        );
-
-    m_notification->show();
-    QTimer::singleShot(4000, m_notification, &QLabel::hide);
-}
-
-/* =====================================================
-   AFFECTATION
-   ===================================================== */
-
-void MainWindow::affecterAutomatiquement()
-{
-    for (Equipe &e : m_equipes)
-        e.vider();
-
-    for (const Participant &p : m_participants)
-    {
-        int i = meilleureEquipe(p);
-        if (i >= 0)
-            m_equipes[i].ajouter(p);
-    }
-
-    rafraichir();
-    afficherNotification("Affectation automatique terminee.");
-}
-bool ouvrirPopupGestionEquipe(
-    QWidget *parent,
-    QTableWidget *tablePrincipal,
-    const Equipe *equipe,
-    int idEquipe,
-    int prochainId,
-    QString &nomEquipe,
-    QVector<Participant> &membres,
-    bool lectureSeule = false)
-{
-    QDialog dialog(parent);
-    dialog.setWindowTitle(equipe ? "Modifier equipe" : "Ajouter equipe");
-    dialog.resize(1070, 650);
-    dialog.setMinimumSize(1070, 650);
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-    QLabel *titre = new QLabel(
-        equipe ? "MODIFIER UNE EQUIPE" : "AJOUTER UNE EQUIPE"
-        );
-    titre->setStyleSheet(
-        "font-size:20px; font-weight:bold; color:#18D9EF;"
-        );
-    layout->addWidget(titre);
-
-    // ===== TABLEAU EQUIPE : MEME COLONNES QUE L'INTERFACE PRINCIPALE =====
-
-    QLabel *titreEquipe = new QLabel("Informations de l'equipe");
-    titreEquipe->setStyleSheet("font-size:16px; font-weight:bold;");
-    layout->addWidget(titreEquipe);
-
-
-    QTableWidget *tableEquipe = new QTableWidget(1, 10);
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    tableEquipe->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    tableEquipe->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    tableEquipe->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-
-    QStringList entetes;
-
-    // Récupération des titres des 8 premières colonnes
-    for (int c = 0; c < 8; ++c)
-    {
-        if (c == 7)
-            entetes << "Date_creation";
-        else
-            entetes << tablePrincipal->horizontalHeaderItem(c)->text();
-    }
-    // Ajout des clés étrangères
-    entetes << "ID Projet";
-    entetes << "ID Evaluation";
-    tableEquipe->setHorizontalHeaderLabels(entetes);
-
-    tableEquipe->setStyleSheet(tablePrincipal->styleSheet());
-    tableEquipe->setAlternatingRowColors(true);
-    tableEquipe->verticalHeader()->setVisible(false);
-    tableEquipe->setSelectionBehavior(QAbstractItemView::SelectRows);
-
-    // Cacher definitivement la scrollbar horizontale
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    // Adapter les 10 colonnes a la largeur disponible
-    tableEquipe->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::Stretch
-        );
-
-    // Désactivation de la barre de défilement horizontale
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    QString id = "E" + QString::number(idEquipe);
-    QString nom = equipe ? equipe->nom() : "";
-    QStringList valeursEquipe = {
-        id,
-        nom,
-        "0",
-        "6",
-        "0 H / 0 F",
-        "-",
-        "-",
-        QDate::currentDate().toString("dd/MM/yyyy"),
-        QString::number(equipe ? equipe->idProjet() : 0),
-        QString::number(equipe ? equipe->idEvaluation() : 0)
-    };
-    for (int c = 0; c < 10; ++c)
-    {
-        QTableWidgetItem *item =
-            new QTableWidgetItem(valeursEquipe[c]);
-
-        // Ajouter : Nom et Date modifiables
-        // Modifier : Nom uniquement
-        // Voir : aucun champ modifiable
-
-        bool modifiable =
-            !lectureSeule &&
-            (c == 1 || (equipe == nullptr && c == 7));
-
-        if (modifiable)
-            item->setFlags(item->flags() | Qt::ItemIsEditable);
-        else
-            item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-
-        tableEquipe->setItem(0, c, item);
-    }
-    tableEquipe->setRowHeight(0, 48);
-    QLineEdit *champNomEquipe = new QLineEdit();
-    champNomEquipe->setPlaceholderText("Nom de l'equipe");
-    champNomEquipe->setText(nom);
-
-    // ===== AFFICHAGE DU TABLEAU EQUIPE =====
-    tableEquipe->horizontalScrollBar()->hide();
-      layout->addWidget(tableEquipe);
-
-
-    champNomEquipe->hide();
-    // ===== TABLEAU DES MEMBRES =====
-
-    QLabel *titreMembres = new QLabel("Membres de l'equipe (maximum 6)");
-    titreMembres->setStyleSheet("font-size:16px; font-weight:bold;");
-    layout->addWidget(titreMembres);
- titreMembres->hide();
-
-    // ===== TABLEAU DES MEMBRES =====
-
-    int nbColonnes = 6;
-
-    QTableWidget *tableMembres = new QTableWidget(0, nbColonnes);
-    tableMembres->setEditTriggers(
-        equipe ? QAbstractItemView::NoEditTriggers
-               : QAbstractItemView::CurrentChanged |
-                     QAbstractItemView::AnyKeyPressed
-        );
-
-    tableMembres->setHorizontalHeaderLabels({
-        "ID", "Nom", "Prenom", "Sexe", "Age", "Competence"
+    // Double clic sur une ligne : afficher les informations
+    connect(t, &QTableWidget::cellDoubleClicked, this, [this](int ligne, int) {
+        if (ligne >= 0 && ligne < m_projetsAffiches.size())
+            voirProjet(m_projetsAffiches[ligne].id());
     });
-
-
-    // Répartition automatique de la largeur des colonnes
-    tableMembres->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    tableMembres->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    tableMembres->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    tableMembres->setMinimumHeight(180);
-    tableMembres->setMaximumHeight(300);
-
-    tableMembres->setAlternatingRowColors(false);
-
-    tableMembres->setStyleSheet(
-        "QTableWidget {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   font-size: 14px;"
-        "   gridline-color: #183044;"
-        "}"
-        "QTableWidget::item {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   padding: 8px;"
-        "}"
-        "QTableWidget::item:selected {"
-        "   background-color: #07111D;"
-        "   color: white;"
-        "}"
-        // Style des champs de saisie
-        "QLineEdit {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   font-size: 14px;"
-        "   font-family: Segoe UI;"
-        "   padding: 6px;"
-        "   border: none;"
-        "   border-radius: 0px;"
-        "   selection-background-color: #087E91;"
-        "   selection-color: white;"
-        "}"
-        "QComboBox {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   border: 1px solid #183044;"
-        "   border-radius: 7px;"
-        "   padding: 6px;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   selection-background-color: #10394B;"
-        "   selection-color: white;"
-        "}"
-        );
-
-
-    tableMembres->setAlternatingRowColors(true);
-    tableMembres->verticalHeader()->setVisible(false);
-
-    tableMembres->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableMembres->setSelectionMode(QAbstractItemView::SingleSelection);
-
-
-    tableMembres->setWordWrap(false);
-    tableMembres->setTextElideMode(Qt::ElideNone);
-
-
-    // ===== DIMENSIONS DU TABLEAU =====
-
-    tableMembres->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::Fixed
-        );
-
-    tableMembres->setColumnWidth(0, 65);   // ID
-    tableMembres->setColumnWidth(1, 145);  // Nom
-    tableMembres->setColumnWidth(2, 145);  // Prenom
-    tableMembres->setColumnWidth(3, 100);  // Sexe
-    tableMembres->setColumnWidth(4, 80);   // Age
-    tableMembres->setColumnWidth(5, 175);  // Competence
-
-    tableMembres->verticalHeader()->setDefaultSectionSize(42);
-    tableMembres->horizontalHeader()->setMinimumHeight(42);
-
-    tableMembres->setMinimumHeight(180);
-    tableMembres->setMaximumHeight(300);
-
-    tableMembres->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    tableMembres->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    tableMembres->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    if (equipe)
-        membres = equipe->membres();
-    else
-        membres.clear();
-
-    // ===== AJOUTER UNE LIGNE MEMBRE =====
-
-    auto ajouterLigne = [&](const Participant *p)
-    {
-        int ligne = tableMembres->rowCount();
-        tableMembres->insertRow(ligne);
-
-        int nouvelId = p ? p->id : prochainId++;
-
-        QStringList valeurs;
-        valeurs << QString::number(nouvelId);
-
-        if (p)
-        {
-            valeurs << p->nom
-                    << p->prenom
-                    << p->sexe
-                    << QString::number(p->age)
-                    << p->competence;
-        }
-        else
-        {
-            valeurs << "" << "" << "" << "" << "";
-        }
-
-        for (int c = 0; c < 6; ++c)
-        {
-            QTableWidgetItem *item =
-                new QTableWidgetItem(valeurs[c]);
-
-            item->setForeground(QBrush(Qt::white));
-
-            if (c == 0)
-                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-            else
-                item->setFlags(item->flags() | Qt::ItemIsEditable);
-
-            if (c == 3)
-            {
-                QString sexe = item ? item->text().trimmed() : "";
-
-                // Création de la liste déroulante du sexe
-                QComboBox *sexeCombo = new QComboBox();
-
-                sexeCombo->addItem("Homme");
-                sexeCombo->addItem("Femme");
-
-                // Définition des dimensions de la liste
-                sexeCombo->setMinimumWidth(170);
-                sexeCombo->setMinimumHeight(32);
-                sexeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
-                // Sélection de la valeur existante
-                int index = sexeCombo->findText(sexe, Qt::MatchFixedString);
-                sexeCombo->setCurrentIndex(index >= 0 ? index : 0);
-
-                tableMembres->setCellWidget(ligne, c, sexeCombo);
-
-                delete item;
-            }
-            else
-            {
-                tableMembres->setItem(ligne, c, item);
-            }
-        }
-
-        tableMembres->setRowHeight(ligne, 42);
-
-        // Adapter les colonnes a la largeur du tableau
-        tableMembres->horizontalHeader()->setSectionResizeMode(
-            QHeaderView::Stretch
-            );
-    };
-
-    // Chargement des membres de l'equipe
-    if (equipe)
-        membres = equipe->membres();
-    else
-        membres.clear();
-
-    // Affichage des membres dans le tableau
-    for (const Participant &p : membres)
-        ajouterLigne(&p);
-    // Adaptation automatique des colonnes
-    tableMembres->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-
-    // Affichage du tableau
-    layout->addWidget(tableMembres, 1);
-    tableMembres->hide();
-    // ===== ACTUALISER LES INFORMATIONS DU TABLEAU EQUIPE =====
-
-    auto actualiserApercu = [&]()
-    {
-        int hommes = 0;
-        int femmes = 0;
-        int totalAge = 0;
-        int nbAges = 0;
-        QStringList competences;
-
-        for (int i = 0; i < tableMembres->rowCount(); ++i)
-        {
-            // Sexe = colonne 3 (ComboBox)
-            QComboBox *sexeCombo =
-                qobject_cast<QComboBox*>(tableMembres->cellWidget(i, 3));
-
-            QString sexe = sexeCombo
-                               ? sexeCombo->currentText().trimmed()
-                               : "";
-
-            // Age = colonne 4
-            bool ok = false;
-
-            int age = tableMembres->item(i, 4)
-                          ? tableMembres->item(i, 4)->text().toInt(&ok)
-                          : 0;
-
-            if (ok)
-            {
-                totalAge += age;
-                ++nbAges;
-            }
-
-            // Competence = colonne 5
-            QString competence = tableMembres->item(i, 5)
-                                     ? tableMembres->item(i, 5)->text().trimmed()
-                                     : "";
-
-            if (!competence.isEmpty() &&
-                !competences.contains(competence, Qt::CaseInsensitive))
-            {
-                competences.append(competence);
-            }
-        }
-
-        tableEquipe->item(0, 1)->setText(
-            tableEquipe->item(0, 1)->text().trimmed()
-            );
-
-        tableEquipe->item(0, 2)->setText(
-            QString::number(tableMembres->rowCount())
-            );
-
-        tableEquipe->item(0, 3)->setText("6");
-
-        tableEquipe->item(0, 4)->setText(
-            QString::number(hommes) + " H / " +
-            QString::number(femmes) + " F"
-            );
-
-        tableEquipe->item(0, 5)->setText(
-            nbAges > 0
-                ? QString::number(double(totalAge) / nbAges, 'f', 1)
-                : "-"
-            );
-
-        tableEquipe->item(0, 6)->setText(
-            competences.isEmpty() ? "-" : competences.join(", ")
-            );
-    };
-
-    QObject::connect(
-        tableMembres,
-        &QTableWidget::itemChanged,
-        &dialog,
-        [&](QTableWidgetItem *item)
-        {
-            actualiserApercu();
-
-            if (item)
-                tableMembres->resizeColumnToContents(item->column());
-        }
-        );
-
-    actualiserApercu();
-
-
-    // ===== ENREGISTRER / ANNULER =====
-
-    QHBoxLayout *boutons = new QHBoxLayout();
-
-    QPushButton *enregistrer = new QPushButton("Enregistrer");
-    QPushButton *annuler = new QPushButton("Annuler");
-
-    enregistrer->setObjectName("primary");
-
-    // Entrer Enregistrer
-    enregistrer->setDefault(true);
-    enregistrer->setAutoDefault(true);
-
-    // EscapeAnnuler
-    annuler->setAutoDefault(false);
-
-    boutons->addStretch();
-    boutons->addWidget(enregistrer);
-    boutons->addWidget(annuler);
-
-    layout->addLayout(boutons);
-
-    QObject::connect(enregistrer, &QPushButton::clicked, &dialog, [&]()
-                     {
-                         QString nom = tableEquipe->item(0, 1)->text().trimmed();
-                         if (nom.isEmpty())
-                         {
-                             QMessageBox::warning(
-                                 &dialog, "Erreur",
-                                 "Le nom de l'equipe est obligatoire."
-                                 );
-                             return;
-                         }
-                         // Modification : changer uniquement le nom de l'equipe
-                         if (equipe)
-                         {
-                             nomEquipe = nom;
-                             membres = equipe->membres();
-                             dialog.accept();
-                             return;
-                         }
-
-                         QVector<Participant> nouveauxMembres;
-
-                         for (int i = 0; i < tableMembres->rowCount(); ++i)
-                         {
-                             // ID
-                             if (!tableMembres->item(i, 0))
-                             {
-                                 QMessageBox::warning(&dialog, "Erreur", "ID invalide.");
-                                 return;
-                             }
-
-                             int idMembre = tableMembres->item(i, 0)->text().toInt();
-
-                             // Nom
-                             QString nomMembre = tableMembres->item(i, 1)
-                                                     ? tableMembres->item(i, 1)->text().trimmed()
-                                                     : "";
-
-                             // Prenom
-                             QString prenom = tableMembres->item(i, 2)
-                                                  ? tableMembres->item(i, 2)->text().trimmed()
-                                                  : "";
-
-                             // Sexe : récupération depuis ComboBox
-                             QComboBox *sexeCombo =
-                                 qobject_cast<QComboBox*>(tableMembres->cellWidget(i, 3));
-
-                             QString sexe = sexeCombo
-                                                ? sexeCombo->currentText().trimmed()
-                                                : "";
-
-                             // Age
-                             QString ageText = tableMembres->item(i, 4)
-                                                   ? tableMembres->item(i, 4)->text().trimmed()
-                                                   : "";
-
-                             // Competence
-                             QString competence = tableMembres->item(i, 5)
-                                                      ? tableMembres->item(i, 5)->text().trimmed()
-                                                      : "";
-
-                             bool ageValide = false;
-                             int age = ageText.toInt(&ageValide);
-
-                             if (nomMembre.isEmpty() ||
-                                 prenom.isEmpty() ||
-                                 competence.isEmpty() ||
-                                 !ageValide ||
-                                 age < 16 || age > 80 ||
-                                 (sexe != "Homme" && sexe != "Femme"))
-
-                             {
-                                 QMessageBox::warning(
-                                     &dialog,
-                                     "Erreur",
-                                     "Verifiez les informations du membre."
-                                     );
-                                 return;
-                             }
-
-                             Participant nouveau;
-
-                             nouveau.id = idMembre;
-                             nouveau.nom = nomMembre;
-                             nouveau.prenom = prenom;
-                             nouveau.sexe = sexe;
-                             nouveau.age = age;
-                             nouveau.competence = competence;
-
-                             nouveauxMembres.append(nouveau);
-                         }
-
-                         nomEquipe = nom;
-                         membres = nouveauxMembres;
-                         dialog.accept();
-                     });
-
-    QObject::connect(annuler, &QPushButton::clicked,
-                     &dialog, &QDialog::reject);
-    if (lectureSeule)
-    {
-        tableEquipe->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        tableMembres->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-        enregistrer->setText("Fermer");
-        enregistrer->setObjectName("");
-        annuler->hide();
-    }
-
-    return dialog.exec() == QDialog::Accepted;
-}
-/* =====================================================
-   AJOUT EQUIPE
-   ===================================================== */
-
-void MainWindow::ajouterEquipe()
-{
-
-
-    QString nom;
-    QVector<Participant> membres;
-
-    if (!ouvrirPopupGestionEquipe(
-            this,
-            m_table,
-            nullptr,
-            prochainIdEquipe(),
-            prochainIdParticipant(),
-            nom,
-            membres))
-        return;
-
-    for (const Equipe &e : m_equipes)
-    {
-        if (e.nom().compare(nom, Qt::CaseInsensitive) == 0)
-        {
-            QMessageBox::warning(
-                this, "Erreur",
-                "Cette equipe existe deja."
-                );
-            return;
-        }
-    }
-
-    // Instanciation d'un objet Equipe
-    Equipe nouvelleEquipe(prochainIdEquipe(), nom);
-
-    for (const Participant &p : membres)
-    {
-        nouvelleEquipe.ajouter(p);
-    }
-
-    // Appel de la méthode ajouter() du Modèle
-    bool test = nouvelleEquipe.ajouter();
-
-    if (test)
-    {
-        for (const Participant &p : membres)
-            m_participants.append(p);
-
-        rafraichir();
-
-        afficherNotification("Equipe ajoutee : " + nom);
-    }
-    else
-    {
-        QMessageBox::critical(
-            this,
-            "Erreur",
-            "Ajout non effectue."
-            );
-    }
 }
 
-/* =====================================================
-   MODIFIER
-   ===================================================== */
-
-void MainWindow::modifierEquipe(int index)
+// Petite etiquette arrondie (Thematique, Statut)
+static QWidget *badge(const QString &texte)
 {
-    if (index < 0 || index >= m_equipes.size())
-        return;
-
-    QString nom;
-    QVector<Participant> membres;
-
-    if (!ouvrirPopupGestionEquipe(
-            this,
-            m_table,
-            &m_equipes[index],
-            m_equipes[index].id(),
-            prochainIdParticipant(),
-            nom,
-            membres))
-        return;
-
-
-    for (int i = 0; i < m_equipes.size(); ++i)
-    {
-        if (i != index &&
-            m_equipes[i].nom().compare(nom, Qt::CaseInsensitive) == 0)
-        {
-            QMessageBox::warning(
-                this, "Erreur",
-                "Cette equipe existe deja."
-                );
-            return;
-        }
-    }
-
-
-    // Préparation de l'objet Equipe
-    Etmp = Equipe(m_equipes[index].id(), nom);
-
-    // Appel de la méthode modifier() du Modèle
-    bool test = Etmp.modifier();
-
-    if (test)
-    {
-
-        rafraichir();
-
-        afficherNotification("Equipe modifiee.");
-    }
-    else
-    {
-        QMessageBox::critical(
-            this,
-            "Erreur",
-            "Modification non effectuee."
-            );
-    }
+    auto *conteneur = new QWidget;
+    auto *l = new QHBoxLayout(conteneur);
+    l->setContentsMargins(6, 0, 6, 0);
+    auto *lbl = new QLabel(ouTiret(texte), conteneur);
+    lbl->setProperty("role", "badge");
+    lbl->setToolTip(texte);
+    l->addWidget(lbl, 0, Qt::AlignVCenter);
+    l->addStretch();
+    return conteneur;
 }
 
-
-/* =====================================================
-   SUPPRIMER
-   ===================================================== */
-
-void MainWindow::supprimerEquipe(int index)
+void MainWindow::remplirTableau(const QList<Projet> &projets)
 {
-    if (index < 0 || index >= m_equipes.size())
-        return;
-
-    const Equipe &e = m_equipes[index];
-
-    // ================= DIALOG =================
-
-    QDialog dialog(this);
-    dialog.setWindowTitle("Suppression de l'equipe");
-    dialog.resize(1070, 650);
-
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-    QLabel *titre = new QLabel("SUPPRESSION DE L'EQUIPE");
-
-    titre->setStyleSheet(
-        "font-size:20px;"
-        "font-weight:bold;"
-        "color:#18D9EF;"
-        );
-
-    layout->addWidget(titre);
-
-    // ================= TABLEAU =================
-
-    QTableWidget *table = new QTableWidget(1, 10);
-
-    table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    QStringList entetes;
-
-    for (int c = 0; c < 8; ++c)
-    {
-        if (c == 7)
-            entetes << "Date_creation";
-        else if (m_table && m_table->horizontalHeaderItem(c))
-            entetes << m_table->horizontalHeaderItem(c)->text();
-        else
-            entetes << QString("Colonne %1").arg(c + 1);
-    }
-
-    entetes << "ID Projet";
-    entetes << "ID Evaluation";
-
-    table->setHorizontalHeaderLabels(entetes);
-    table->setStyleSheet(m_table->styleSheet());
-
-    QVector<Participant> membres = e.membres();
-
-    int hommes = 0;
-    int femmes = 0;
-    int sommeAge = 0;
-
-    QStringList competences;
-
-    for (const Participant &p : membres)
-    {
-        QString sexe = p.sexe.trimmed().toLower();
-
-        if (sexe == "homme" || sexe == "h")
-            hommes++;
-        else if (sexe == "femme" || sexe == "f")
-            femmes++;
-
-        sommeAge += p.age;
-
-        QString comp = p.competence.trimmed();
-
-        if (!comp.isEmpty() && comp != "-" &&
-            !competences.contains(comp))
-        {
-            competences << comp;
-        }
-    }
-
-    QString sexeText = QString("%1 H / %2 F")
-                           .arg(hommes)
-                           .arg(femmes);
-
-    QString ageText = membres.isEmpty()
-                          ? "-"
-                          : QString::number(
-                                qRound((double)sommeAge / membres.size())
-                                );
-
-    QString competenceText = competences.isEmpty()
-                                 ? "-"
-                                 : competences.join(", ");
-
-    QString dateText = "-";
-
-    if (m_table && index < m_table->rowCount() &&
-        m_table->item(index, 7))
-    {
-        dateText = m_table->item(index, 7)->text();
-    }
-
-    QStringList valeurs = {
-        "E" + QString::number(e.id()),
-        e.nom(),
-        QString::number(e.taille()),
-        "6",
-        sexeText,
-        ageText,
-        competenceText,
-        dateText,
-        QString::number(e.idProjet()),
-        QString::number(e.idEvaluation())
-    };
-
-    for (int c = 0; c < 10; ++c)
-    {
-        QTableWidgetItem *item = new QTableWidgetItem(valeurs[c]);
-
-        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-
-        table->setItem(0, c, item);
-    }
-
-    table->setRowHeight(0, 48);
-
-    table->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::ResizeToContents
-        );
-
-    table->horizontalHeader()->setSectionResizeMode(
-        1, QHeaderView::Interactive
-        );
-
-    table->setColumnWidth(1, 180);
-
-    table->verticalHeader()->setVisible(false);
-
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-    table->setSelectionBehavior(QAbstractItemView::SelectRows);
-
-    layout->addWidget(table);
-
-    // ================= BOUTONS =================
-
-    QHBoxLayout *boutons = new QHBoxLayout();
-
-    QPushButton *btnSupprimer = new QPushButton("Supprimer");
-    QPushButton *btnAnnuler = new QPushButton("Annuler");
-
-    btnSupprimer->setStyleSheet(
-        "background-color:#18D9EF;"
-        "color:#050B14;"
-        "padding:10px 20px;"
-        "border-radius:7px;"
-        "font-weight:bold;"
-        "border:none;"
-        );
-
-    btnAnnuler->setStyleSheet(
-        "background-color:#34495E;"
-        "color:white;"
-        "padding:10px 20px;"
-        "border-radius:7px;"
-        );
-
-    boutons->addStretch();
-    boutons->addWidget(btnSupprimer);
-    boutons->addWidget(btnAnnuler);
-
-    layout->addLayout(boutons);
-
-    // ================= ANNULER =================
-
-    connect(btnAnnuler, &QPushButton::clicked,
-            &dialog, &QDialog::reject);
-
-    // ================= SUPPRIMER =================
-
-    connect(btnSupprimer, &QPushButton::clicked,
-            &dialog, [this, index, &dialog]()
-            {
-                if (index < 0 || index >= m_equipes.size())
-                    return;
-
-                if (m_equipes.size() == 1 && !m_participants.isEmpty())
-                {
-                    QMessageBox::warning(
-                        &dialog,
-                        "Impossible",
-                        "Gardez au moins une equipe."
-                        );
-                    return;
-                }
-
-
-                // Appel de la méthode supprimer() du Modèle
-                int idEquipe = m_equipes[index].id();
-
-                bool test = Etmp.supprimer(idEquipe);
-
-                if (test)
-                {
-
-                    rafraichir();
-
-                    afficherNotification("Equipe supprimee.");
-
-                    dialog.accept();
-                }
-                else
-                {
-                    QMessageBox::critical(
-                        &dialog,
-                        "Erreur",
-                        "Suppression non effectuee."
-                        );
-                }
-
-
-            });
-
-    dialog.exec();
-}
-
-/* =====================================================
-   VOIR EQUIPE
-   ===================================================== */
-
-
-void MainWindow::voirEquipe(int index)
-{
-    if (index < 0 || index >= m_equipes.size())
-        return;
-
-    const Equipe &e = m_equipes[index];
-
-    QDialog dialog(this);
-    dialog.setWindowTitle("Informations de l'equipe");
-    dialog.resize(1070, 650);
-
-    QVBoxLayout *layout = new QVBoxLayout(&dialog);
-
-    QLabel *titre = new QLabel("INFORMATIONS DE L'EQUIPE");
-    titre->setStyleSheet(
-        "font-size:20px;"
-        "font-weight:bold;"
-        "color:#18D9EF;"
-        );
-
-    layout->addWidget(titre);
-
-    // Tableau avec les memes colonnes que Modifier
-    QTableWidget *table = new QTableWidget(1, 10);
-    table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    QStringList entetes;
-
-    for (int c = 0; c < 8; ++c)
-    {
-        if (c == 7)
-            entetes << "Date_creation";
-        else
-            entetes << m_table->horizontalHeaderItem(c)->text();
-    }
-
-    entetes << "ID Projet";
-    entetes << "ID Evaluation";
-
-    table->setHorizontalHeaderLabels(entetes);
-
-    table->setStyleSheet(m_table->styleSheet());
-    QVector<Participant> membres = e.membres();
-
-    int hommes = 0;
-    int femmes = 0;
-    int sommeAge = 0;
-
-    QStringList competences;
-
-    for (const Participant &p : membres)
-    {
-        QString sexe = p.sexe.trimmed().toLower();
-
-        if (sexe == "homme" || sexe == "h")
-            hommes++;
-        else if (sexe == "femme" || sexe == "f")
-            femmes++;
-
-        sommeAge += p.age;
-
-        QString comp = p.competence.trimmed();
-
-        if (!comp.isEmpty() && comp != "-" &&
-            !competences.contains(comp))
-        {
-            competences << comp;
-        }
-    }
-
-    QString sexeText = QString("%1 H / %2 F")
-                           .arg(hommes)
-                           .arg(femmes);
-
-    QString ageText = membres.isEmpty()
-                          ? "-"
-                          : QString::number(
-                                qRound((double)sommeAge / membres.size())
-                                );
-
-    QString competenceText = competences.isEmpty()
-                                 ? "-"
-                                 : competences.join(", ");
-
-    QString dateText = "-";
-
-    if (m_table && index < m_table->rowCount() &&
-        m_table->item(index, 7))
-    {
-        dateText = m_table->item(index, 7)->text();
-
-    }
-   table->setColumnWidth(7, 150);
-   table->setHorizontalHeaderLabels(entetes);
-
-    QStringList valeurs = {
-        "E" + QString::number(e.id()),
-        e.nom(),
-        QString::number(e.taille()),
-        "6",
-        sexeText,
-        ageText,
-        competenceText,
-        dateText,
-        QString::number(e.idProjet()),
-        QString::number(e.idEvaluation())
-    };
-
-    for (int c = 0; c < 10; ++c)
-    {
-        QTableWidgetItem *item =
-            new QTableWidgetItem(valeurs[c]);
-
-        item->setFlags(
-            item->flags() & ~Qt::ItemIsEditable
-            );
-
-        table->setItem(0, c, item);
-    }
-
-    table->setRowHeight(0, 48);
-
-    table->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::ResizeToContents
-        );
-
-    table->horizontalHeader()->setSectionResizeMode(
-        1, QHeaderView::Interactive
-        );
-
-    table->setColumnWidth(1, 180);
-
-    table->verticalHeader()->setVisible(false);
-
-    table->setEditTriggers(
-        QAbstractItemView::NoEditTriggers
-        );
-
-    table->setSelectionBehavior(
-        QAbstractItemView::SelectRows
-        );
-
-    layout->addWidget(table);
-
-    QPushButton *fermer = new QPushButton("Fermer");
-
-    layout->addWidget(fermer, 0, Qt::AlignRight);
-
-    connect(
-        fermer,
-        &QPushButton::clicked,
-        &dialog,
-        &QDialog::accept
-        );
-
-    dialog.exec();
-}
-
-/* =====================================================
-   QR
-   ===================================================== */
-
-QImage MainWindow::creerQR(const QString &code) const
-{
-    const int n = 21;
-    const int s = 7;
-
-    QImage image((n + 8) * s, (n + 8) * s, QImage::Format_RGB32);
-    image.fill(Qt::white);
-
-    QPainter p(&image);
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::black);
-
-    int total = 0;
-    for (char c : code.toUtf8())
-    {
-        total += static_cast<unsigned char>(c);
-    }
-
-    for (int y = 0; y < n; ++y)
-    {
-        for (int x = 0; x < n; ++x)
-        {
-            bool fixed = (x < 7 && y < 7) || (x >= n - 7 && y < 7) || (x < 7 && y >= n - 7);
-            if (fixed) continue;
-
-            int value = x * 31 + y * 17 + total;
-            if (value % 5 == 0 || value % 11 == 0)
-            {
-                p.drawRect((x + 4) * s, (y + 4) * s, s, s);
-            }
-        }
-    }
-
-    auto finder = [&](int ox, int oy) {
-        for (int y = 0; y < 7; ++y)
-        {
-            for (int x = 0; x < 7; ++x)
-            {
-                bool black = x == 0 || x == 6 || y == 0 || y == 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4);
-                if (black)
-                {
-                    p.drawRect((ox + x + 4) * s, (oy + y + 4) * s, s, s);
-                }
-            }
-        }
-    };
-
-    finder(0, 0);
-    finder(n - 7, 0);
-    finder(0, n - 7);
-
-    p.end();
-    return image;
-}
-
-/* =====================================================
-   AFFICHER QR
-   ===================================================== */
-
-void MainWindow::afficherQR(int index)
-{
-    if (index < 0 || index >= m_equipes.size())
-        return;
-
-    QString code = "DEVE-EQ-" + QString::number(m_equipes[index].id());
-    QImage image = creerQR(code);
-
-    QDialog dialog(this);
-    dialog.setWindowTitle("QR - " + m_equipes[index].nom());
-  dialog.setFixedSize(700, 500);
-
-    QVBoxLayout *v = new QVBoxLayout(&dialog);
-
-    QLabel *title = new QLabel(m_equipes[index].nom());
-    title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet("color:#18D9EF;font-size:20px;font-weight:bold;");
-
-    QLabel *img = new QLabel;
-    img->setAlignment(Qt::AlignCenter);
-    img->setPixmap(QPixmap::fromImage(image));
-
-    QPushButton *save = new QPushButton("Enregistrer PNG");
-    QPushButton *close = new QPushButton("Fermer");
-
-    v->addWidget(title);
-    v->addWidget(img);
-    v->addWidget(new QLabel(code));
-    v->addWidget(save);
-    v->addWidget(close);
-
-    connect(save, &QPushButton::clicked, [this, image]() {
-        QString file = QFileDialog::getSaveFileName(this, "Enregistrer QR", "qr_equipe.png", "PNG (*.png)");
-        if (!file.isEmpty()) image.save(file);
-    });
-
-    connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
-
-    dialog.exec();
-}
-
-/* =====================================================
-   BADGE
-   ===================================================== */
-
-QImage MainWindow::creerBadge(const Equipe &e) const
-{
-    QImage image(900, 500, QImage::Format_RGB32);
-    image.fill(QColor("#081522"));
-
-    QPainter p(&image);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    p.setPen(QPen(QColor("#18D9EF"), 3));
-    p.drawRoundedRect(10, 10, 880, 480, 20, 20);
-
-    p.setPen(QColor("#18D9EF"));
-    p.setFont(QFont("Segoe UI", 24, QFont::Bold));
-    p.drawText(40, 55, "◆ Devena");
-
-    p.setPen(Qt::white);
-    p.setFont(QFont("Segoe UI", 30, QFont::Bold));
-    p.drawText(40, 120, e.nom());
-
-    p.setFont(QFont("Segoe UI", 16));
-    p.drawText(45, 170, "Equipe #" + QString::number(e.id()));
-    p.drawText(45, 220, "Membres : " + QString::number(e.taille()) + " / 6");
-    p.drawText(45, 255, "Hommes : " + QString::number(e.hommes()));
-    p.drawText(45, 290, "Femmes : " + QString::number(e.femmes()));
-    p.drawText(45, 325, "Age moyen : " + QString::number(e.ageMoyen(), 'f', 1));
-
-    QImage qr = creerQR("DEVE-EQ-" + QString::number(e.id()));
-    qr = qr.scaled(190, 190, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-
-    p.drawImage(660, 100, qr);
-    p.end();
-
-    return image;
-}
-
-/* =====================================================
-   AFFICHER BADGE
-   ===================================================== */
-
-void MainWindow::afficherBadge(int index)
-{
-    if (index < 0 || index >= m_equipes.size())
-        return;
-
-    QImage image = creerBadge(m_equipes[index]);
-
-    QDialog dialog(this);
-    dialog.setWindowTitle("Badge - " + m_equipes[index].nom());
-  dialog.setFixedSize(700, 500);
-    QVBoxLayout *v = new QVBoxLayout(&dialog);
-
-    QLabel *img = new QLabel;
-    img->setAlignment(Qt::AlignCenter);
-    img->setPixmap(QPixmap::fromImage(image).scaled(
-        640, 356,
-        Qt::KeepAspectRatio,
-        Qt::SmoothTransformation
-        ));
-
-    QPushButton *save = new QPushButton("Enregistrer le badge");
-    QPushButton *close = new QPushButton("Fermer");
-
-    v->addWidget(img, 1);
-    v->addWidget(save);
-    v->addWidget(close);
-
-    connect(save, &QPushButton::clicked, [this, image]() {
-        QString file = QFileDialog::getSaveFileName(this, "Enregistrer le badge", "badge_equipe.png", "PNG (*.png)");
-        if (!file.isEmpty()) image.save(file);
-    });
-
-    connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
-
-    dialog.exec();
-}
-
-/* =====================================================
-   AFFICHER EQUIPES
-   ===================================================== */
-
-void MainWindow::afficherEquipes()
-{
-    // Appel de la méthode afficher() du Modèle
-    QSqlQueryModel *model = Etmp.afficher();
-
-    if (!model)
-    {
-        QMessageBox::warning(
-            this, "Erreur",
-            "Impossible de charger les equipes."
-            );
-        return;
-    }
-
-    if (model->lastError().isValid())
-    {
-        QMessageBox::warning(
-            this, "Erreur SQL",
-            model->lastError().text()
-            );
-
-        delete model;
-        return;
-    }
-
-    m_table->clearContents();
-    m_table->setRowCount(model->rowCount());
-
-    m_equipes.clear();
-
-    for (int i = 0; i < model->rowCount(); ++i)
-    {
-        // 1. ID Equipe
-        QString idBD =
-            model->data(model->index(i, 0)).toString().trimmed();
-
-        QString idTexte = idBD;
-
-        if (idTexte.startsWith("e", Qt::CaseInsensitive))
-            idTexte.remove(0, 1);
-
-        bool ok = false;
-        int id = idTexte.toInt(&ok);
-
-        if (!ok)
-        {
-            QMessageBox::warning(
-                this, "Erreur",
-                "ID Equipe invalide : " + idBD
-                );
-
-            m_table->setRowCount(0);
-            m_equipes.clear();
-            delete model;
-            return;
-        }
-
-        // 2. Nom Equipe
-        QString nom =
-            model->data(model->index(i, 1)).toString();
-
-        // Création de l'objet Equipe
-        Equipe e(id, nom);
-
-        // 3. Age moyen
-        e.setAgeMoyen(
-            model->data(model->index(i, 5)).toDouble()
-            );
-
-        m_equipes.append(e);
-
-        // 4. Nombre de membres
-        QString nbMembres =
-            model->data(model->index(i, 2)).toString();
-
-        // 5. Capacité maximale
-        QString capacite =
-            model->data(model->index(i, 3)).toString();
-
-        // 6. Sexe
-        QString sexe =
-            model->data(model->index(i, 4)).toString();
-
-        // 7. Age moyen
-        QString age =
-            model->data(model->index(i, 5)).toString();
-
-        // 8. Compétences
-        QString competences =
-            model->data(model->index(i, 6)).toString();
-
-        // 9. Date de création
-        QVariant dateValue =
-            model->data(model->index(i, 7));
-
-        QDate date = dateValue.toDateTime().date();
-
-        if (!date.isValid())
-            date = dateValue.toDate();
-
-        QString dateText = date.isValid()
-                               ? date.toString("dd/MM/yyyy")
-                               : dateValue.toString();
-
-        // Remplissage du tableau principal
-        QStringList valeurs = {
-            idBD.toUpper(),
-            nom,
-            nbMembres,
-            capacite,
-            sexe,
-            age,
-            competences,
-            dateText
+    m_projetsAffiches = projets;
+    QTableWidget *t = ui->tableProjets;
+    t->clearContents();
+    t->setRowCount(projets.size());
+
+    for (int i = 0; i < projets.size(); ++i) {
+        const Projet &p = projets[i];
+
+        auto *itemId = new QTableWidgetItem(p.id());
+        QFont gras = itemId->font();
+        gras.setBold(true);
+        itemId->setFont(gras);
+        itemId->setForeground(couleurs().accent);
+        t->setItem(i, ColId, itemId);
+
+        t->setItem(i, ColTitre, new QTableWidgetItem(p.titre()));
+        auto *itemDescr = new QTableWidgetItem(p.description());
+        itemDescr->setToolTip(p.description());
+        t->setItem(i, ColDescription, itemDescr);
+
+        t->setCellWidget(i, ColThematique, badge(p.thematique()));
+        t->setCellWidget(i, ColStatut, badge(p.statut()));
+
+        auto *itemCrea = new QTableWidgetItem(dateOuTiret(p.dateCreation()));
+        auto *itemLim  = new QTableWidgetItem(dateOuTiret(p.dateLimite()));
+        for (QTableWidgetItem *it : {itemCrea, itemLim})
+            it->setTextAlignment(Qt::AlignCenter);
+        t->setItem(i, ColCreation, itemCrea);
+        t->setItem(i, ColLimite, itemLim);
+
+        // Boutons d'action : voir, modifier, supprimer
+        auto *actions = new QWidget;
+        auto *la = new QHBoxLayout(actions);
+        la->setContentsMargins(4, 0, 10, 0);
+        la->setSpacing(6);
+        la->addStretch();
+
+        const QString id = p.id();
+        auto creer = [actions, la](const QString &icone, const QString &aide, const char *role) {
+            auto *b = new QToolButton(actions);
+            b->setText(icone);
+            b->setToolTip(aide);
+            b->setProperty("role", role);
+            b->setCursor(Qt::PointingHandCursor);
+            la->addWidget(b);
+            return b;
         };
+        connect(creer(QStringLiteral("👁"), tr("Voir"), "action"), &QToolButton::clicked,
+                this, [this, id] { voirProjet(id); });
+        connect(creer(QStringLiteral("✎"), tr("Modifier"), "action"), &QToolButton::clicked,
+                this, [this, id] { modifierProjet(id); });
+        connect(creer(QStringLiteral("🗑"), tr("Supprimer"), "danger"), &QToolButton::clicked,
+                this, [this, id] { supprimerProjet(id); });
 
-        for (int c = 0; c < 8; ++c)
-        {
-            m_table->setItem(
-                i, c,
-                new QTableWidgetItem(valeurs[c])
-                );
-        }
-
-        // ================= ACTIONS =================
-
-        QWidget *actions = new QWidget;
-        QHBoxLayout *a = new QHBoxLayout(actions);
-
-        a->setContentsMargins(2, 2, 2, 2);
-        a->setSpacing(6);
-
-        QPushButton *eye = new QPushButton("👁");
-        QPushButton *edit = new QPushButton("✎");
-        QPushButton *trash = new QPushButton("🗑");
-        QPushButton *qr = new QPushButton("▣");
-        QPushButton *badge = new QPushButton("★");
-
-        eye->setObjectName("iconButton");
-        edit->setObjectName("iconButton");
-        trash->setObjectName("iconButton");
-        qr->setObjectName("iconButton");
-        badge->setObjectName("iconButton");
-
-        eye->setFixedSize(34, 30);
-        edit->setFixedSize(34, 30);
-        trash->setFixedSize(34, 30);
-        qr->setFixedSize(34, 30);
-        badge->setFixedSize(34, 30);
-
-        eye->setToolTip("Voir les membres");
-        edit->setToolTip("Modifier l'equipe");
-        trash->setToolTip("Supprimer l'equipe");
-        qr->setToolTip("Afficher le QR");
-        badge->setToolTip("Afficher le badge");
-
-        a->addWidget(eye);
-        a->addWidget(edit);
-        a->addWidget(trash);
-        a->addWidget(qr);
-        a->addWidget(badge);
-
-        m_table->setCellWidget(i, 8, actions);
-        m_table->setRowHeight(i, 46);
-
-        connect(eye, &QPushButton::clicked,
-                [this, i]() { voirEquipe(i); });
-
-        connect(edit, &QPushButton::clicked,
-                [this, i]() { modifierEquipe(i); });
-
-        connect(trash, &QPushButton::clicked,
-                [this, i]() { supprimerEquipe(i); });
-
-        connect(qr, &QPushButton::clicked,
-                [this, i]() { afficherQR(i); });
-
-        connect(badge, &QPushButton::clicked,
-                [this, i]() { afficherBadge(i); });
-    }
-
-    delete model;
-}
-
-
-/* =====================================================
-   COURBE
-   ===================================================== */
-
-/* =====================================================
-   COURBE (Corrigée : à 0.0 s'il n'y a pas de membres)
-   ===================================================== */
-
-QPixmap MainWindow::creerCourbe() const
-{
-    const int W = 1000;
-    const int H = 170;
-
-    QPixmap pix(W, H);
-    pix.fill(m_modeClair ? QColor("#FFFFFF") : QColor("#081421"));
-
-    QPainter p(&pix);
-    p.setRenderHint(QPainter::Antialiasing);
-
-    p.setPen(m_modeClair ? QColor("#D5DEE8") : QColor("#162A3E"));
-
-    // Lignes horizontales
-    for (int y = 30; y < 145; y += 28)
-    {
-        p.drawLine(45, y, W - 25, y);
-    }
-
-    p.setPen(m_modeClair ? QColor("#526579") : QColor("#8EA0B7"));
-    p.drawText(45, 18, "Membres inscrits");
-
-    p.drawText(5, 138, "0.0");
-    p.drawText(5, 110, "12.5");
-    p.drawText(5, 82,  "37.5");
-    p.drawText(5, 54,  "50.0");
-
-    QStringList mois = {"Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sept"};
-
-    // Calcule le nombre total actuel de membres inscrits dans toutes les équipes
-    int totalMembresActuels = 0;
-    for (const Equipe &e : m_equipes)
-    {
-        totalMembresActuels += e.taille();
-    }
-
-    QVector<QPointF> points;
-    double startX = 65;
-    double endX = W - 40;
-    double stepX = (endX - startX) / (mois.size() - 1);
-
-    QVector<double> valeursY;
-
-    if (totalMembresActuels == 0)
-    {
-        // Si aucun membre n'est présent (ou équipes vides), la courbe reste plate à 0.0
-        valeursY = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
-    }
-    else
-    {
-        // Si des membres sont affectés, la courbe progresse pour atteindre le total actuel
-        double step = double(totalMembresActuels) / 7.0;
-        for (int i = 0; i < mois.size(); ++i)
-        {
-            valeursY.append(i * step);
-        }
-    }
-
-    for (int i = 0; i < mois.size(); ++i) {
-        double x = startX + i * stepX;
-        double y = 138 - (valeursY[i] / 50.0) * 90.0;
-        points.append(QPointF(x, y));
-    }
-
-    p.setPen(QPen(QColor("#18BFD4"), 2.5));
-
-    for (int i = 1; i < points.size(); ++i)
-    {
-        p.drawLine(points[i - 1], points[i]);
-    }
-
-    for (int i = 0; i < points.size(); ++i)
-    {
-        p.setPen(m_modeClair ? QColor("#526579") : QColor("#8EA0B7"));
-        p.drawText(points[i].x() - 10, 162, mois[i]);
-    }
-
-    p.end();
-    return pix;
-}
-/* =====================================================
-   STATISTIQUES
-   ===================================================== */
-
-void MainWindow::afficherStatistiques()
-{
-    int total = 0;
-    int h = 0;
-    int f = 0;
-
-    for (const Equipe &e : m_equipes)
-    {
-        total += e.taille();
-        h += e.hommes();
-        f += e.femmes();
-    }
-
-    m_totalEquipes->setText(QString::number(m_equipes.size()));
-    m_totalMembres->setText(QString::number(total));
-    m_totalHommes->setText(QString::number(h));
-    m_totalFemmes->setText(QString::number(f));
-
-    m_courbe->setPixmap(creerCourbe());
-}
-
-/* =====================================================
-   FILTRE
-   ===================================================== */
-
-void MainWindow::filtrer()
-{
-    QString search = m_recherche->text().trimmed().toLower();
-    QString filter = m_filtre->currentText();
-
-    for (int i = 0; i < m_equipes.size(); ++i)
-    {
-        const Equipe &e = m_equipes[i];
-        bool visible = search.isEmpty() || e.nom().toLower().contains(search);
-
-        if (filter == "Equipe avec membres")
-        {
-            visible = visible && e.taille() > 0;
-        }
-        else if (filter == "Equipe vide")
-        {
-            visible = visible && e.taille() == 0;
-        }
-        else if (filter == "Equipe complete")
-        {
-            visible = visible && e.pleine();
-        }
-
-        m_table->setRowHidden(i, !visible);
+        t->setCellWidget(i, ColActions, actions);
     }
 }
-
-/* =====================================================
-   EXPORT PDF
-   ===================================================== */
-
-void MainWindow::exporterPDF()
-{
-    QString file = QFileDialog::getSaveFileName(
-        this,
-        "Exporter les equipes en PDF",
-        "Devena_Equipes.pdf",
-        "PDF (*.pdf)"
-        );
-
-    if (file.isEmpty())
-        return;
-
-    QPdfWriter pdf(file);
-    pdf.setPageSize(QPageSize(QPageSize::A4));
-    pdf.setPageOrientation(QPageLayout::Landscape);
-    pdf.setResolution(96);
-
-    QPainter painter(&pdf);
-
-    if (!painter.isActive())
-    {
-        QMessageBox::warning(this, "Erreur", "Impossible de creer le PDF.");
-        return;
-    }
-
-    QRect page = painter.viewport();
-
-    int left = 50;
-    int top = 50;
-
-    painter.setPen(QColor("#087F91"));
-    painter.setFont(QFont("Segoe UI", 24, QFont::Bold));
-    painter.drawText(left, top + 25, "◆ Devena");
-
-    painter.setPen(Qt::black);
-    painter.setFont(QFont("Segoe UI", 18, QFont::Bold));
-    painter.drawText(left, top + 65, "Liste des equipes");
-
-    painter.setFont(QFont("Segoe UI", 10));
-    painter.drawText(left, top + 90, "Gestion des equipes - Hackathon");
-
-    int y = top + 125;
-
-    int colID = left;
-    int colEquipe = left + 65;
-    int colMembres = left + 300;
-    int colHF = left + 405;
-    int colAge = left + 500;
-    int colStatut = left + 600;
-
-    painter.setBrush(QColor("#EAF1F7"));
-    painter.setPen(QColor("#087F91"));
-    painter.drawRect(left, y, page.width() - 100, 35);
-
-    painter.setFont(QFont("Segoe UI", 10, QFont::Bold));
-    painter.drawText(colID + 8, y + 23, "ID");
-    painter.drawText(colEquipe + 8, y + 23, "Equipe");
-    painter.drawText(colMembres + 8, y + 23, "Membres");
-    painter.drawText(colHF + 8, y + 23, "H / F");
-    painter.drawText(colAge + 8, y + 23, "Age moyen");
-    painter.drawText(colStatut + 8, y + 23, "Statut");
-
-    y += 35;
-
-    painter.setFont(QFont("Segoe UI", 10));
-    painter.setPen(Qt::black);
-
-    for (const Equipe &e : m_equipes)
-    {
-        if (y > page.height() - 100)
-        {
-            pdf.newPage();
-            y = 70;
-        }
-
-        painter.setPen(QColor("#D5DEE8"));
-        painter.drawLine(left, y + 35, page.width() - 50, y + 35);
-
-        painter.setPen(Qt::black);
-        painter.drawText(colID + 8, y + 22, "E" + QString::number(e.id()));
-        painter.drawText(colEquipe + 8, y + 22, e.nom());
-        painter.drawText(colMembres + 8, y + 22, QString::number(e.taille()) + " / 6");
-        painter.drawText(colHF + 8, y + 22, QString::number(e.hommes()) + " / " + QString::number(e.femmes()));
-        painter.drawText(colAge + 8, y + 22, QString::number(e.ageMoyen(), 'f', 1));
-        painter.drawText(colStatut + 8, y + 22, e.statut());
-
-        y += 36;
-
-        for (const Participant &p : e.membres())
-        {
-            if (y > page.height() - 100)
-            {
-                pdf.newPage();
-                y = 70;
-            }
-
-            painter.setPen(QColor("#526579"));
-            QString membre = "   - " + p.prenom + " " + p.nom + " | " + p.sexe + " | " + QString::number(p.age) + " ans | " + p.competence;
-            painter.drawText(colEquipe + 8, y + 18, membre);
-            y += 25;
-        }
-
-        y += 10;
-    }
-
-    if (y > page.height() - 180)
-    {
-        pdf.newPage();
-        y = 70;
-    }
-
-    int total = 0;
-    int hommes = 0;
-    int femmes = 0;
-
-    for (const Equipe &e : m_equipes)
-    {
-        total += e.taille();
-        hommes += e.hommes();
-        femmes += e.femmes();
-    }
-
-    painter.setPen(QColor("#087F91"));
-    painter.setFont(QFont("Segoe UI", 14, QFont::Bold));
-    painter.drawText(left, y + 30, "Statistiques");
-
-    painter.setPen(Qt::black);
-    painter.setFont(QFont("Segoe UI", 11));
-    painter.drawText(left, y + 60, "Nombre d'equipes : " + QString::number(m_equipes.size()));
-    painter.drawText(left, y + 85, "Nombre de membres : " + QString::number(total));
-    painter.drawText(left, y + 110, "Hommes : " + QString::number(hommes));
-    painter.drawText(left, y + 135, "Femmes : " + QString::number(femmes));
-
-    painter.end();
-
-    QMessageBox::information(this, "Export PDF", "Le fichier PDF a ete exporte avec succes.");
-}
-
-/* =====================================================
-   MODE CLAIR
-   ===================================================== */
-
-void MainWindow::changerModeClair()
-{
-    m_modeClair = !m_modeClair;
-
-    if (m_modeClair)
-    {
-        setStyleSheet(STYLE_LIGHT);
-
-        m_side->setStyleSheet(
-            "QWidget{"
-            "background:#FFFFFF;"
-            "border-right:1px solid #D6E0EA;"
-            "}"
-            "QPushButton{"
-            "text-align:left;"
-            "border:0;"
-            "background:transparent;"
-            "color:#64748B;"
-            "padding:12px;"
-            "}"
-            "QPushButton#active{"
-            "background:#E3F8FB;"
-            "color:#087F91;"
-            "border:1px solid #18D9EF;"
-            "}"
-            );
-
-        QLabel *logo = findChild<QLabel *>("logoLabel");
-        QLabel *slogan = findChild<QLabel *>("sloganLabel");
-        QLabel *footer = findChild<QLabel *>("footerLabel");
-        QLabel *title = findChild<QLabel *>("titleLabel");
-        QLabel *subtitle = findChild<QLabel *>("subtitleLabel");
-        QLabel *tableTitle = findChild<QLabel *>("tableTitleLabel");
-        QLabel *statsTitle = findChild<QLabel *>("statsTitleLabel");
-
-        if (logo) logo->setStyleSheet("color:#087F91;font-size:27px;font-weight:bold;");
-        if (slogan) slogan->setStyleSheet("color:#64748B;");
-        if (footer) footer->setStyleSheet("color:#94A3B8;");
-        if (title) title->setStyleSheet("font-size:30px;font-weight:bold;color:#182433;");
-        if (subtitle) subtitle->setStyleSheet("color:#64748B;");
-        if (tableTitle) tableTitle->setStyleSheet("font-size:19px;font-weight:bold;color:#182433;");
-        if (statsTitle) statsTitle->setStyleSheet("font-size:20px;font-weight:bold;color:#182433;");
-    }
-    else
-    {
-        setStyleSheet(STYLE_DARK);
-
-        m_side->setStyleSheet(
-            "QWidget{"
-            "background:#030914;"
-            "border-right:1px solid #17283A;"
-            "}"
-            "QPushButton{"
-            "text-align:left;"
-            "border:0;"
-            "background:transparent;"
-            "color:#718198;"
-            "padding:12px;"
-            "}"
-            "QPushButton#active{"
-            "background:#092A3D;"
-            "color:#18D9EF;"
-            "border:1px solid #18D9EF;"
-            "}"
-            );
-
-        QLabel *logo = findChild<QLabel *>("logoLabel");
-        QLabel *slogan = findChild<QLabel *>("sloganLabel");
-        QLabel *footer = findChild<QLabel *>("footerLabel");
-        QLabel *title = findChild<QLabel *>("titleLabel");
-        QLabel *subtitle = findChild<QLabel *>("subtitleLabel");
-        QLabel *tableTitle = findChild<QLabel *>("tableTitleLabel");
-        QLabel *statsTitle = findChild<QLabel *>("statsTitleLabel");
-
-        if (logo) logo->setStyleSheet("color:#18D9EF;font-size:27px;font-weight:bold;");
-        if (slogan) slogan->setStyleSheet("color:#718198;");
-        if (footer) footer->setStyleSheet("color:#3A4D65;");
-        if (title) title->setStyleSheet("font-size:30px;font-weight:bold;color:white;");
-        if (subtitle) subtitle->setStyleSheet("color:#7D8BA3;");
-        if (tableTitle) tableTitle->setStyleSheet("font-size:19px;font-weight:bold;color:white;");
-        if (statsTitle) statsTitle->setStyleSheet("font-size:20px;font-weight:bold;color:white;");
-    }
-
-    afficherStatistiques();
-}
-
-/* =====================================================
-   RAFRAICHIR
-   ===================================================== */
 
 void MainWindow::rafraichir()
 {
-    afficherEquipes();
-    afficherStatistiques();
-    filtrer();
+    QString erreur;
+    const QList<Projet> projets = Projet::lister(ui->lineEditRecherche->text(), &erreur);
+    if (!erreur.isEmpty())
+        QMessageBox::critical(this, tr("Base de données"),
+                              tr("Impossible de lire les projets.\n%1").arg(erreur));
+    remplirTableau(projets);
+    mettreAJourStatistiques();
+}
+
+// ===== Formulaire "Ajouter un projet" / "Modifier le projet" =====
+// Meme presentation pour les deux : titre en majuscules, puis tous les champs
+// alignes sur une ligne. En modification, l'ID (cle du projet) n'est pas modifiable.
+// Renvoie true si l'utilisateur a clique Enregistrer avec une saisie valide ;
+// p contient alors les valeurs saisies.
+
+static const QStringList THEMATIQUES = {"IA", "Web", "IoT", "Mobile", "Cybersécurité", "Data"};
+static const QStringList STATUTS     = {"En attente", "En cours", "Terminé", "Annulé"};
+
+// Selectionne le texte dans la liste, ou l'ajoute s'il vient de la base sans y figurer
+static void choisir(QComboBox *combo, const QString &texte)
+{
+    if (texte.isEmpty())
+        return;
+    int i = combo->findText(texte);
+    if (i < 0) {
+        combo->addItem(texte);
+        i = combo->count() - 1;
+    }
+    combo->setCurrentIndex(i);
+}
+
+bool MainWindow::ouvrirFormulaire(Projet &p, bool modification)
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(modification ? tr("Modifier le projet") : tr("Ajouter un projet"));
+    dlg.resize(1500, 440);
+
+    // Champs
+    auto *id = new QLineEdit(p.id(), &dlg);
+    id->setMaxLength(30);
+    id->setValidator(new QRegularExpressionValidator(QRegularExpression("[A-Za-z0-9_]{0,30}"), id));
+    id->setReadOnly(modification);
+
+    auto *titre = new QLineEdit(p.titre(), &dlg);
+    titre->setMaxLength(80);
+
+    auto *description = new QPlainTextEdit(p.description(), &dlg);
+    description->setFixedHeight(90);
+
+    auto *thematique = new QComboBox(&dlg);
+    thematique->addItems(THEMATIQUES);
+    choisir(thematique, p.thematique());
+
+    auto *statut = new QComboBox(&dlg);
+    statut->addItems(STATUTS);
+    choisir(statut, p.statut());
+
+    auto *dateCreation = new QDateEdit(p.dateCreation().isValid() ? p.dateCreation()
+                                                                   : QDate::currentDate(), &dlg);
+    auto *dateLimite = new QDateEdit(p.dateLimite().isValid() ? p.dateLimite()
+                                                               : QDate::currentDate().addDays(7), &dlg);
+    for (QDateEdit *d : {dateCreation, dateLimite}) {
+        d->setCalendarPopup(true);
+        d->setDisplayFormat("dd/MM/yyyy");
+    }
+
+    // Titre et sous titre
+    auto *labelTitre = new QLabel(modification ? tr("MODIFIER LE PROJET") : tr("AJOUTER UN PROJET"), &dlg);
+    labelTitre->setProperty("role", "titreDialogue");
+    auto *sousTitre = new QLabel(tr("Informations du projet"), &dlg);
+    sousTitre->setProperty("role", "gras");
+
+    // Cadre avec les champs alignes : etiquettes sur la ligne 0, champs sur la ligne 1
+    auto *cadre = new QFrame(&dlg);
+    cadre->setProperty("role", "carte");
+    auto *grille = new QGridLayout(cadre);
+    grille->setContentsMargins(14, 14, 14, 14);
+    grille->setHorizontalSpacing(12);
+
+    const QList<QPair<QString, QWidget *>> champs = {
+        {tr("ID Projet"), id},
+        {tr("Titre"), titre},
+        {tr("Description"), description},
+        {tr("Thématique"), thematique},
+        {tr("Statut"), statut},
+        {tr("Date de création"), dateCreation},
+        {tr("Date limite"), dateLimite},
+    };
+    for (int col = 0; col < champs.size(); ++col) {
+        auto *etiquette = new QLabel(champs[col].first, cadre);
+        etiquette->setProperty("role", "etiquette");
+        grille->addWidget(etiquette, 0, col);
+        grille->addWidget(champs[col].second, 1, col, Qt::AlignTop);
+    }
+    grille->setColumnStretch(2, 1);   // la description prend la place restante
+    grille->setRowStretch(2, 1);
+
+    // Boutons
+    auto *enregistrer = new QPushButton(tr("Enregistrer"), &dlg);
+    enregistrer->setProperty("role", "primaire");
+    enregistrer->setDefault(true);
+    auto *annuler = new QPushButton(tr("Annuler"), &dlg);
+    auto *ligneBoutons = new QHBoxLayout;
+    ligneBoutons->addStretch();
+    ligneBoutons->addWidget(enregistrer);
+    ligneBoutons->addWidget(annuler);
+
+    auto *racine = new QVBoxLayout(&dlg);
+    racine->setContentsMargins(26, 22, 26, 20);
+    racine->setSpacing(12);
+    racine->addWidget(labelTitre);
+    racine->addWidget(sousTitre);
+    racine->addWidget(cadre, 1);
+    racine->addLayout(ligneBoutons);
+
+    connect(annuler, &QPushButton::clicked, &dlg, &QDialog::reject);
+
+    // Enregistrer : controle de saisie, la fenetre reste ouverte si un champ est invalide
+    connect(enregistrer, &QPushButton::clicked, &dlg, [&] {
+        const QString t = dlg.windowTitle();
+        const QString valId = id->text().trimmed().toUpper();
+        const QString valDescr = description->toPlainText().trimmed();
+
+        if (valId.isEmpty()) {
+            QMessageBox::warning(&dlg, t, tr("L'ID du projet est obligatoire."));
+            id->setFocus();
+            return;
+        }
+        if (titre->text().trimmed().isEmpty()) {
+            QMessageBox::warning(&dlg, t, tr("Le titre est obligatoire."));
+            titre->setFocus();
+            return;
+        }
+        if (valDescr.isEmpty()) {
+            QMessageBox::warning(&dlg, t, tr("La description est obligatoire."));
+            description->setFocus();
+            return;
+        }
+        if (valDescr.size() > 400) {
+            QMessageBox::warning(&dlg, t, tr("La description ne doit pas dépasser 400 caractères."));
+            description->setFocus();
+            return;
+        }
+        if (dateLimite->date() < dateCreation->date()) {
+            QMessageBox::warning(&dlg, t, tr("La date limite doit être après la date de création."));
+            dateLimite->setFocus();
+            return;
+        }
+        if (!modification && Projet::existe(valId)) {
+            QMessageBox::warning(&dlg, t, tr("Un projet avec l'ID %1 existe déjà.").arg(valId));
+            id->setFocus();
+            return;
+        }
+        dlg.accept();
+    });
+
+    if (dlg.exec() != QDialog::Accepted)
+        return false;
+
+    p = Projet(id->text().trimmed().toUpper(),
+               titre->text().trimmed(),
+               description->toPlainText().trimmed(),
+               thematique->currentText(),
+               statut->currentText(),
+               dateCreation->date(),
+               dateLimite->date());
+    return true;
+}
+
+// ===== Create =====
+void MainWindow::ajouterProjet()
+{
+    Projet p;
+    p.setId(prochainId());
+    if (!ouvrirFormulaire(p, false))
+        return;
+
+    QString erreur;
+    if (!p.ajouter(&erreur)) {
+        QMessageBox::critical(this, tr("Ajout"), tr("Échec de l'ajout.\n%1").arg(erreur));
+        return;
+    }
+    empiler({Action::Ajout, Projet(), p});
+    rafraichir();
+    QMessageBox::information(this, tr("Ajout"), tr("Projet %1 ajouté.").arg(p.id()));
+}
+
+// ===== Read =====
+void MainWindow::voirProjet(const QString &id)
+{
+    Projet p;
+    QString erreur;
+    if (!Projet::charger(id, p, &erreur)) {
+        QMessageBox::warning(this, tr("Informations du projet"), erreur);
+        return;
+    }
+
+    const QString texte =
+        tr("ID PROJET : %1\n\n").arg(p.id()) +
+        tr("TITRE : %1\n\n").arg(ouTiret(p.titre())) +
+        tr("DESCRIPTION :\n%1\n\n").arg(ouTiret(p.description())) +
+        tr("THÉMATIQUE : %1\n\n").arg(ouTiret(p.thematique())) +
+        tr("STATUT : %1\n\n").arg(ouTiret(p.statut())) +
+        tr("DATE DE CRÉATION : %1\n\n").arg(dateOuTiret(p.dateCreation())) +
+        tr("DATE LIMITE : %1").arg(dateOuTiret(p.dateLimite()));
+
+    QMessageBox::information(this, tr("Informations du projet"), texte);
+}
+
+// ===== Update =====
+void MainWindow::modifierProjet(const QString &id)
+{
+    Projet avant;
+    QString erreur;
+    if (!Projet::charger(id, avant, &erreur)) {
+        QMessageBox::warning(this, tr("Modifier le projet"), erreur);
+        return;
+    }
+
+    Projet apres = avant;
+    if (!ouvrirFormulaire(apres, true))
+        return;
+
+    if (!apres.modifier(&erreur)) {
+        QMessageBox::critical(this, tr("Modification"),
+                              tr("Échec de la modification.\n%1").arg(erreur));
+        return;
+    }
+    empiler({Action::Modification, avant, apres});
+    rafraichir();
+}
+
+// ===== Delete =====
+void MainWindow::supprimerProjet(const QString &id)
+{
+    Projet avant;
+    QString erreur;
+    if (!Projet::charger(id, avant, &erreur)) {
+        QMessageBox::warning(this, tr("Suppression"), erreur);
+        return;
+    }
+
+    const QString question = tr("Supprimer le projet %1 « %2 » ?").arg(avant.id(), avant.titre());
+    if (QMessageBox::question(this, tr("Suppression"), question) != QMessageBox::Yes)
+        return;
+
+    if (!Projet::supprimer(id, &erreur)) {
+        QMessageBox::critical(this, tr("Suppression"),
+                              tr("Échec de la suppression.\n%1").arg(erreur));
+        return;
+    }
+    empiler({Action::Suppression, avant, Projet()});
+    rafraichir();
+}
+
+// ===== Annuler (Ctrl+Z) =====
+void MainWindow::empiler(const Action &a)
+{
+    m_historique.append(a);
+    ui->boutonAnnuler->setEnabled(true);
+}
+
+void MainWindow::annulerDerniereAction()
+{
+    if (m_historique.isEmpty())
+        return;
+
+    const Action a = m_historique.takeLast();
+    QString erreur;
+    bool ok = false;
+    QString message;
+
+    switch (a.type) {
+    case Action::Ajout:
+        ok = Projet::supprimer(a.apres.id(), &erreur);
+        message = tr("Ajout du projet %1 annulé.").arg(a.apres.id());
+        break;
+    case Action::Modification:
+        ok = a.avant.modifier(&erreur);
+        message = tr("Modification du projet %1 annulée.").arg(a.avant.id());
+        break;
+    case Action::Suppression:
+        ok = a.avant.ajouter(&erreur);
+        message = tr("Projet %1 restauré.").arg(a.avant.id());
+        break;
+    }
+
+    ui->boutonAnnuler->setEnabled(!m_historique.isEmpty());
+    if (!ok) {
+        QMessageBox::critical(this, tr("Annuler"), tr("Impossible d'annuler.\n%1").arg(erreur));
+        return;
+    }
+    rafraichir();
+    QMessageBox::information(this, tr("Annuler"), message);
+}
+
+// ===== Export PDF : la liste affichee (avec le filtre de recherche) =====
+void MainWindow::exporterPdf()
+{
+    const QString dossier = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+    QString chemin = QFileDialog::getSaveFileName(this, tr("Exporter en PDF"),
+                                                  dossier + "/projets.pdf",
+                                                  tr("Fichiers PDF (*.pdf)"));
+    if (chemin.isEmpty())
+        return;
+    if (!chemin.endsWith(".pdf", Qt::CaseInsensitive))
+        chemin += ".pdf";
+
+    auto echapper = [](const QString &s) { return ouTiret(s).toHtmlEscaped(); };
+
+    QString html =
+        "<h2 style='color:#0891b2'>Devena : liste des projets</h2>"
+        "<p style='color:#555'>Exporté le " + QDate::currentDate().toString("dd/MM/yyyy") +
+        " · " + QString::number(m_projetsAffiches.size()) + " projet(s)</p>"
+        "<table width='100%' cellspacing='0' cellpadding='5' border='1' "
+        "style='border-collapse:collapse; border-color:#cbd5e1; font-size:9pt'>"
+        "<tr style='background:#0891b2; color:white'>"
+        "<th>ID Projet</th><th>Titre</th><th>Description</th><th>Thématique</th>"
+        "<th>Statut</th><th>Date de création</th><th>Date limite</th></tr>";
+
+    for (const Projet &p : std::as_const(m_projetsAffiches)) {
+        html += "<tr><td>" + echapper(p.id()) + "</td><td>" + echapper(p.titre()) +
+                "</td><td>" + echapper(p.description()) + "</td><td>" +
+                echapper(p.thematique()) + "</td><td>" + echapper(p.statut()) +
+                "</td><td>" + dateOuTiret(p.dateCreation()) + "</td><td>" +
+                dateOuTiret(p.dateLimite()) + "</td></tr>";
+    }
+    html += "</table>";
+
+    QPdfWriter pdf(chemin);
+    pdf.setPageSize(QPageSize(QPageSize::A4));
+    pdf.setPageOrientation(QPageLayout::Landscape);
+    pdf.setPageMargins(QMarginsF(12, 12, 12, 12), QPageLayout::Millimeter);
+    pdf.setTitle(tr("Liste des projets"));
+
+    QTextDocument doc;
+    doc.setHtml(html);
+    doc.print(&pdf);
+
+    QMessageBox::information(this, tr("Exporter en PDF"),
+                             tr("PDF enregistré :\n%1").arg(chemin));
+}
+
+// Cherche le plus grand numero parmi les ID de forme Pnnn et propose le suivant
+QString MainWindow::prochainId() const
+{
+    int maxi = 0;
+    QSqlQuery q;
+    if (q.exec("SELECT ID_PROJET FROM PROJETS")) {
+        static const QRegularExpression re("^P(\\d+)$", QRegularExpression::CaseInsensitiveOption);
+        while (q.next()) {
+            const auto m = re.match(q.value(0).toString().trimmed());
+            if (m.hasMatch())
+                maxi = qMax(maxi, m.captured(1).toInt());
+        }
+    }
+    return QString("P%1").arg(maxi + 1, 3, 10, QChar('0'));
+}
+
+// ==========================================================
+// ===== Statistiques =====
+// ==========================================================
+
+// Remplit les 4 cartes et les points de la courbe (projets par thematique)
+void MainWindow::mettreAJourStatistiques()
+{
+    int total = 0, enCours = 0, termines = 0, enRetard = 0;
+    QSqlQuery q;
+
+    // "Termin%" evite de dependre de l'encodage du "e" accentue
+    if (q.exec("SELECT COUNT(*), "
+               "SUM(CASE WHEN STATUT = 'En cours' THEN 1 ELSE 0 END), "
+               "SUM(CASE WHEN STATUT LIKE 'Termin%' THEN 1 ELSE 0 END), "
+               "SUM(CASE WHEN DATE_LIMITE < TRUNC(SYSDATE) "
+               "AND (STATUT IS NULL OR STATUT NOT LIKE 'Termin%') THEN 1 ELSE 0 END) "
+               "FROM PROJETS")
+        && q.next()) {
+        total    = q.value(0).toInt();
+        enCours  = q.value(1).toInt();
+        termines = q.value(2).toInt();
+        enRetard = q.value(3).toInt();
+    }
+    ui->labelNbProjets->setText(QString::number(total));
+    ui->labelNbEnCours->setText(QString::number(enCours));
+    ui->labelNbTermines->setText(QString::number(termines));
+    ui->labelNbEnRetard->setText(QString::number(enRetard));
+
+    m_statsThematique.clear();
+    if (q.exec("SELECT NVL(THEMATIQUE, '-'), COUNT(*) FROM PROJETS "
+               "GROUP BY THEMATIQUE ORDER BY 1")) {
+        while (q.next())
+            m_statsThematique.append({q.value(0).toString(), q.value(1).toInt()});
+    }
+    ui->graphique->update();   // redessine la courbe
+}
+
+// Quand ui->graphique doit se redessiner, on dessine la courbe nous memes
+bool MainWindow::eventFilter(QObject *objet, QEvent *evenement)
+{
+    if (objet == ui->graphique && evenement->type() == QEvent::Paint) {
+        dessinerGraphique();
+        return true;
+    }
+    return QMainWindow::eventFilter(objet, evenement);
+}
+
+void MainWindow::dessinerGraphique()
+{
+    const Couleurs c = couleurs();
+    QPainter p(ui->graphique);
+    p.setRenderHint(QPainter::Antialiasing);
+
+    const QRectF zone = ui->graphique->rect().adjusted(30, 30, -30, -30);
+
+    // Lignes horizontales de fond
+    p.setPen(QPen(c.bordure, 1));
+    for (int i = 0; i <= 4; ++i) {
+        const qreal y = zone.top() + zone.height() * i / 4.0;
+        p.drawLine(QPointF(zone.left(), y), QPointF(zone.right(), y));
+    }
+
+    if (m_statsThematique.isEmpty())
+        return;
+
+    int maxi = 1;
+    for (const auto &d : std::as_const(m_statsThematique))
+        maxi = qMax(maxi, d.second);
+
+    // Position de chaque point
+    QList<QPointF> points;
+    const int n = m_statsThematique.size();
+    for (int i = 0; i < n; ++i) {
+        const qreal x = (n == 1) ? zone.center().x()
+                                 : zone.left() + zone.width() * i / (n - 1);
+        const qreal y = zone.bottom() - (zone.height() * 0.8) * m_statsThematique[i].second / maxi;
+        points.append(QPointF(x, y));
+    }
+
+    // Courbe
+    QPainterPath chemin(points.first());
+    for (int i = 1; i < n; ++i)
+        chemin.lineTo(points[i]);
+    p.setPen(QPen(c.accent, 2.5));
+    p.setBrush(Qt::NoBrush);
+    p.drawPath(chemin);
+
+    // Points, valeurs au dessus, thematiques en dessous
+    QFont police = ui->graphique->font();
+    police.setPointSizeF(police.pointSizeF() * 0.9);
+    p.setFont(police);
+    for (int i = 0; i < n; ++i) {
+        p.setPen(Qt::NoPen);
+        p.setBrush(c.accent);
+        p.drawEllipse(points[i], 5, 5);
+
+        p.setPen(c.discret);
+        p.drawText(QRectF(points[i].x() - 40, points[i].y() - 26, 80, 18),
+                   Qt::AlignCenter, QString::number(m_statsThematique[i].second));
+        p.drawText(QRectF(points[i].x() - 60, zone.bottom() + 6, 120, 18),
+                   Qt::AlignCenter, m_statsThematique[i].first);
+    }
+}
+
+// ==========================================================
+// ===== Theme : mode sombre / mode clair =====
+// ==========================================================
+
+void MainWindow::basculerTheme()
+{
+    m_sombre = !m_sombre;
+    appliquerTheme();
+    remplirTableau(m_projetsAffiches);   // recolore les ID
+}
+
+void MainWindow::appliquerTheme()
+{
+    qApp->setStyleSheet(feuilleDeStyle());
+    ui->boutonTheme->setText(m_sombre ? tr("☼  Mode clair") : tr("☾  Mode sombre"));
+    ui->graphique->update();
+}
+
+MainWindow::Couleurs MainWindow::couleurs() const
+{
+    if (m_sombre)
+        return {QColor("#060c16"), QColor("#09121f"), QColor("#0a1524"), QColor("#1b2b40"),
+                QColor("#e2e8f0"), QColor("#8b97a8"), QColor("#22d3ee"), QColor("#03141b"),
+                QColor("#0c2b36"), QColor("#f87171")};
+    return {QColor("#f3f6fa"), QColor("#ffffff"), QColor("#ffffff"), QColor("#d5dde8"),
+            QColor("#0f172a"), QColor("#64748b"), QColor("#0891b2"), QColor("#ffffff"),
+            QColor("#e0f7fb"), QColor("#dc2626")};
+}
+
+// Feuille de style Qt (QSS) : les mots @xxx sont remplaces par les couleurs du theme
+QString MainWindow::feuilleDeStyle() const
+{
+    const Couleurs c = couleurs();
+
+    QString qss = R"(
+QMainWindow, QDialog, QMessageBox, #contenuProjets, QStackedWidget > QWidget {
+    background: @fond;
+}
+QWidget { color: @texte; font-family: "Segoe UI"; font-size: 10pt; }
+QLabel { background: transparent; }
+QToolTip { background: @carte; color: @texte; border: 1px solid @bordure; }
+
+/* Barre laterale */
+#sidebar { background: @panneau; border-right: 1px solid @bordure; }
+#labelLogo { color: @accent; font-size: 17pt; }
+#labelSlogan, #labelPied { color: @discret; font-size: 9pt; }
+QPushButton[role="menu"] {
+    text-align: left; padding: 11px 14px; background: transparent;
+    border: 1px solid transparent; border-radius: 6px; color: @discret;
+}
+QPushButton[role="menu"]:hover { color: @texte; }
+QPushButton[role="menu"]:checked { background: @badge; border: 1px solid @accent; color: @texte; }
+
+/* Textes */
+#labelTitrePage { font-size: 20pt; }
+QLabel[role="sousTitre"] { color: @discret; }
+QLabel[role="section"] { font-size: 12pt; }
+QLabel[role="valeurStat"] { color: @accent; font-size: 18pt; }
+QLabel[role="titreDialogue"] { color: @accent; font-size: 14pt; font-weight: 700; }
+QLabel[role="gras"] { font-weight: 600; }
+QLabel[role="etiquette"] { color: @accent; }
+QLabel[role="badge"] {
+    background: @badge; color: @accent; border-radius: 6px; padding: 3px 9px;
+}
+
+/* Boutons */
+QPushButton {
+    background: @carte; border: 1px solid @bordure; border-radius: 6px;
+    padding: 8px 14px;
+}
+QPushButton:hover { border-color: @accent; }
+QPushButton[role="primaire"] {
+    background: @accent; color: @accentTexte; border: 1px solid @accent; font-weight: 600;
+}
+QPushButton[role="lien"] { background: transparent; border: none; color: @discret; }
+QPushButton[role="lien"]:hover { color: @accent; }
+QPushButton[role="lien"]:disabled { color: @bordure; }
+QToolButton[role="action"] {
+    background: transparent; border: none; color: @discret; font-size: 12pt; padding: 2px 4px;
+}
+QToolButton[role="action"]:hover { color: @accent; }
+QToolButton[role="danger"] {
+    background: transparent; border: none; color: @discret; font-size: 12pt; padding: 2px 4px;
+}
+QToolButton[role="danger"]:hover { color: @danger; }
+
+/* Champs */
+QLineEdit, QPlainTextEdit, QComboBox, QDateEdit {
+    background: @panneau; border: 1px solid @bordure; border-radius: 6px; padding: 7px 9px;
+    selection-background-color: @accent; selection-color: @accentTexte;
+}
+QLineEdit:focus, QPlainTextEdit:focus, QComboBox:focus, QDateEdit:focus { border-color: @accent; }
+QLineEdit:read-only { color: @discret; }
+QComboBox QAbstractItemView {
+    background: @carte; border: 1px solid @bordure;
+    selection-background-color: @badge; selection-color: @texte;
+}
+QCalendarWidget QWidget { background: @carte; color: @texte; }
+QCalendarWidget QToolButton { background: transparent; color: @texte; }
+QCalendarWidget QAbstractItemView:enabled {
+    selection-background-color: @accent; selection-color: @accentTexte;
+}
+
+/* Cartes et tableau */
+QFrame[role="carte"] { background: @carte; border: 1px solid @bordure; border-radius: 8px; }
+QFrame[role="carte"] QLabel { border: none; }
+QTableWidget {
+    background: @carte; border: 1px solid @bordure; border-radius: 8px;
+    gridline-color: transparent; outline: none;
+}
+QTableWidget::item { border-bottom: 1px solid @bordure; padding: 4px 8px; }
+QTableWidget::item:selected { background: @badge; color: @texte; }
+QHeaderView::section {
+    background: @carte; color: @accent; border: none; border-bottom: 1px solid @bordure;
+    padding: 12px 8px; font-weight: 600; font-size: 9pt;
+}
+QTableCornerButton::section { background: @carte; border: none; }
+
+/* Defilement */
+QScrollArea { border: none; background: transparent; }
+QScrollBar:vertical { background: transparent; width: 10px; margin: 0; }
+QScrollBar::handle:vertical { background: @bordure; border-radius: 5px; min-height: 30px; }
+QScrollBar:horizontal { background: transparent; height: 10px; margin: 0; }
+QScrollBar::handle:horizontal { background: @bordure; border-radius: 5px; min-width: 30px; }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+)";
+
+    qss.replace("@fond", c.fond.name())
+       .replace("@panneau", c.panneau.name())
+       .replace("@carte", c.carte.name())
+       .replace("@bordure", c.bordure.name())
+       .replace("@texte", c.texte.name())
+       .replace("@discret", c.discret.name())
+       .replace("@accentTexte", c.accentTexte.name())   // avant @accent
+       .replace("@accent", c.accent.name())
+       .replace("@badge", c.badge.name())
+       .replace("@danger", c.danger.name());
+    return qss;
 }
