@@ -7,13 +7,15 @@ SOURCES += \
     mainwindow.cpp \
     projet.cpp \
     employe.cpp \
-    connection.cpp
+    connection.cpp \
+    SessionManager.cpp
 
 HEADERS += \
     mainwindow.h \
     projet.h \
     employe.h \
-    connection.h
+    connection.h \
+    SessionManager.h
 
 FORMS += \
     employe.ui
