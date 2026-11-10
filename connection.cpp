@@ -1,29 +1,59 @@
 #include "connection.h"
 
-#include <QSqlDatabase>
-#include <QSqlError>
-
-// A ADAPTER : nom de la source de donnees ODBC (DSN) creee dans
-// "Sources de donnees ODBC (64 bits)" de Windows, et ton compte Oracle.
-static const char *NOM_DSN      = "devena";
-static const char *UTILISATEUR  = "devena";
-static const char *MOT_DE_PASSE = "2006";
-
-bool Connection::ouvrir()
-{
-    QSqlDatabase db = QSqlDatabase::addDatabase("QODBC");
-    db.setDatabaseName(NOM_DSN);
-    db.setUserName(UTILISATEUR);
-    db.setPassword(MOT_DE_PASSE);
-
-    if (!db.open()) {
-        m_erreur = db.lastError().text();
-        return false;
+// Ctor
+// Initialise l'attribut `db` avec le driver ODBC (Oracle).
+// Utilise un nom de connexion unique "devena_conn" pour éviter les conflits
+// si Qt détecte une tentative d'enregistrement d'une connexion déjà existante.
+// On le fait dans le constructeur pour que `db` soit stocké dans le Singleton.
+// Cela signifie que la même instance de `QSqlDatabase` sera utilisée partout dans l'application
+// via le Singleton, au lieu de créer une nouvelle connexion à chaque fois.
+Connection::Connection() {
+    // Vérifie si une connexion nommée existe déjà pour éviter les duplicatas
+    if (QSqlDatabase::contains("devena_conn")) {
+        db = QSqlDatabase::database("devena_conn");
+    } else {
+        db = QSqlDatabase::addDatabase("QODBC", "devena_conn");
     }
-    return true;
 }
 
-void Connection::fermer()
-{
-    QSqlDatabase::database().close();
+//Dtor
+// Ferme la connexion si elle est encore ouverte lorsque l'objet est détruit
+Connection::~Connection() {
+    if (db.isOpen())
+        db.close(); // Libère proprement les ressources
 }
+
+// --- Accès à l'instance unique du Singleton ---
+// Utilise la technique "Meyers Singleton" : instance statique locale
+// Elle est créée la première fois qu'on appelle createInstance()
+// et reste vivante pendant toute la durée du programme (thread-safe en C++11+)
+Connection& Connection::createInstance() {
+    static Connection instance;  // Instance unique du Singleton
+    return instance; // Retourne une référence à cette instance
+}
+
+
+bool Connection::createConnection() {
+    db.setDatabaseName("devena");           // Nom du DSN ODBC configuré dans Windows
+    db.setUserName("devena");               // Nom d'utilisateur Oracle
+    db.setPassword("esprit2006");           // Mot de passe Oracle
+
+    if (db.open()) {
+        // Les modules Equipes (Alaa) et Projets (Jihene) utilisent la connexion
+        // par defaut de Qt : on l'ouvre aussi, avec les memes parametres.
+        if (!QSqlDatabase::contains(QSqlDatabase::defaultConnection)) {
+            QSqlDatabase defaut = QSqlDatabase::addDatabase("QODBC");
+            defaut.setDatabaseName(db.databaseName());
+            defaut.setUserName(db.userName());
+            defaut.setPassword(db.password());
+            if (!defaut.open())
+                qDebug() << "[Devena] Connexion par defaut non ouverte :" << defaut.lastError().text();
+        }
+        qDebug() << "[Devena] Connexion Oracle/ODBC établie via DSN : Source_ProjetC++";
+        return true;
+    }
+
+    qDebug() << "[Devena] Échec de la connexion Oracle/ODBC :" << db.lastError().text();
+    return false;
+}
+

@@ -94,6 +94,20 @@ void MainWindow::construireMenu()
         groupe->addButton(b);
         b->setCursor(Qt::PointingHandCursor);
 
+        // Integration : ces modules existent dans l'application, on y navigue
+        if (b != ui->boutonProjets && b != ui->boutonParametres) {
+            const QString module = b == ui->boutonTableauBord  ? QStringLiteral("Tableau de bord")
+                                 : b == ui->boutonEmployee     ? QStringLiteral("Employes")
+                                 : b == ui->boutonParticipants ? QStringLiteral("Participants")
+                                 : b == ui->boutonEquipes      ? QStringLiteral("Equipes")
+                                                               : QStringLiteral("Evaluations");
+            connect(b, &QPushButton::clicked, this, [this, module] {
+                ui->boutonProjets->setChecked(true);
+                emit naviguer(module);
+            });
+            continue;
+        }
+
         QWidget *page = ui->pageProjets;
         if (b != ui->boutonProjets) {
             page = new QWidget;
@@ -698,7 +712,8 @@ void MainWindow::basculerTheme()
 
 void MainWindow::appliquerTheme()
 {
-    qApp->setStyleSheet(feuilleDeStyle());
+    // Integration : theme applique a ce module seulement (pas a toute l'application)
+    setStyleSheet(feuilleDeStyle());
     ui->boutonTheme->setText(m_sombre ? tr("☼  Mode clair") : tr("☾  Mode sombre"));
     ui->graphique->update();
 }

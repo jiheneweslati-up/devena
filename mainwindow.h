@@ -22,6 +22,10 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
     ~MainWindow() override;
 
+signals:
+    // Integration : clic sur un autre module dans le menu de gauche
+    void naviguer(const QString &module);
+
 protected:
     // Sert a dessiner la courbe des statistiques dans ui->graphique
     bool eventFilter(QObject *objet, QEvent *evenement) override;
