@@ -21,20 +21,39 @@ public:
     static Connection& createInstance(); // Méthode qui retourne une référence unique
     bool createConnection();             // Méthode utilisée pour établir la connexion à la base
 
+    // Secours : base SQLite en mémoire (mêmes tables) si Oracle est indisponible
+    bool createDemoConnection();
+    static bool estModeDemo();
+
 private:
 
-    // attribut Connexion persistante: attribut d’une instance qui vit longtemps (le Singleton)
+    // attribut Connexion persistante: attribut d'une instance qui vit longtemps (le Singleton)
     QSqlDatabase db;
 
     /******Méthodes privées*****/
     /**************************/
 
-    Connection(); // Constructeur privé pour éviter la création d'autres instances
+    Connection();  // Constructeur privé pour éviter la création d'autres instances
     ~Connection(); // Destructeur privé pour fermer proprement la connexion
 
-    // Interdire la copie & l'affectation ==> Suppression pour garantir l’unicité de l'instance de connexion
+    // Interdire la copie & l'affectation ==> garantir l'unicité de l'instance de connexion
     Connection(const Connection&) = delete;
     Connection& operator=(const Connection&) = delete;
 };
+
+
+// ===========================================================================
+// Base de démonstration (secours si Oracle est indisponible)
+// ===========================================================================
+// ---------------------------------------------------------------------------
+//  Base de démonstration (SQLite en mémoire)
+//  Utilisée UNIQUEMENT si la connexion Oracle échoue, pour pouvoir tester
+//  l'application. Elle reprend les tables de la base commune (mêmes noms de
+//  tables et de colonnes) avec quelques données de test.
+// ---------------------------------------------------------------------------
+namespace BaseDemo {
+bool initialiser();
+}
+
 
 #endif // CONNEXION_H
