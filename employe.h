@@ -14,8 +14,8 @@ struct EmployeData
     QString prenom;
     QString email;
     QString telephone;
-    QDate dateEmbauche;
-    double salaire = 0.0;
+    QDate   dateEmbauche;
+    double  salaire = 0.0;
     QString poste;
     QString motDePasse;
     QString statut;
@@ -40,14 +40,23 @@ private slots:
     void chargerSelection();
 
 private:
-    void chargerExemples();
+    // Oracle CRUD
+    void chargerDepuisOracle();     // SELECT * FROM EMPLOYES
+    void chargerExemples();         // fallback données statiques
+    bool insererOracle(const EmployeData &e);
+    bool modifierOracle(const EmployeData &e);
+    bool supprimerOracle(const QString &id);
+
+    // UI helpers
     void ajouterLigne(const EmployeData &e);
     EmployeData lireLigne(int row) const;
-    int ligneSelectionnee() const;
+    int  ligneSelectionnee() const;
     void appliquerStyle(bool sombre);
     void ouvrirFormulaire(int row);
+    void viderFormulaire();
 
     Ui::EmployePage *ui;
-    bool m_sombre = true;
-    int m_nextId = 4;
+    bool m_sombre  = true;
+    int  m_nextId  = 4;
+    bool m_oracle  = false;   // true si connexion Oracle disponible
 };
