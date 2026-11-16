@@ -42,6 +42,7 @@
 #include <QSqlQueryModel>
 #include <QSqlError>
 #include <QDateTime>
+#include <QFormLayout>
 /* =====================================================
    STYLE DARK
    ===================================================== */
@@ -686,6 +687,10 @@ void MainWindow::affecterAutomatiquement()
     rafraichir();
     afficherNotification("Affectation automatique terminee.");
 }
+// =====================================================
+// POPUP MODIFIER EQUIPE : FORMULAIRE VERTICAL
+// =====================================================
+
 bool ouvrirPopupGestionEquipe(
     QWidget *parent,
     QTableWidget *tablePrincipal,
@@ -694,421 +699,271 @@ bool ouvrirPopupGestionEquipe(
     int prochainId,
     QString &nomEquipe,
     QVector<Participant> &membres,
-    bool lectureSeule = false)
+    bool lectureSeule)
 {
+    Q_UNUSED(prochainId);
+
     QDialog dialog(parent);
-    dialog.setWindowTitle(equipe ? "Modifier equipe" : "Ajouter equipe");
-    dialog.resize(1070, 650);
-    dialog.setMinimumSize(1070, 650);
+
+    dialog.setWindowTitle("Modifier equipe");
+    dialog.setFixedSize(780, 690);
+
+    dialog.setStyleSheet(
+        "QDialog {"
+        " background-color: #050B14;"
+        "}"
+        "QLabel {"
+        " color: #C7D3E0;"
+        " font-family: 'Segoe UI';"
+        " font-size: 13px;"
+        "}"
+        "QLabel#titrePrincipal {"
+        " color: #18D9EF;"
+        " font-size: 21px;"
+        " font-weight: bold;"
+        "}"
+        "QLabel#sousTitre {"
+        " color: #8193A8;"
+        " font-size: 12px;"
+        "}"
+        "QLineEdit {"
+        " color: white;"
+        " background-color: #07111D;"
+        " border: 1px solid #1C3448;"
+        " border-radius: 7px;"
+        " padding: 8px 10px;"
+        " font-size: 13px;"
+        " min-height: 20px;"
+        "}"
+        "QLineEdit:focus {"
+        " border: 1px solid #18D9EF;"
+        "}"
+        "QLineEdit:read-only {"
+        " color: #91A3B8;"
+        " background-color: #091522;"
+        " border: 1px solid #142A3C;"
+        "}"
+        "QPushButton {"
+        " padding: 10px 24px;"
+        " border-radius: 7px;"
+        " font-size: 13px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton#primary {"
+        " background-color: #18D9EF;"
+        " color: #050B14;"
+        " border: none;"
+        "}"
+        "QPushButton#primary:hover {"
+        " background-color: #45E6F5;"
+        "}"
+        "QPushButton#secondary {"
+        " background-color: #142334;"
+        " color: #D5E0EC;"
+        " border: 1px solid #263E53;"
+        "}"
+        "QPushButton#secondary:hover {"
+        " background-color: #20364A;"
+        "}"
+        );
+
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-    QLabel *titre = new QLabel(
-        equipe ? "MODIFIER UNE EQUIPE" : "AJOUTER UNE EQUIPE"
+    layout->setContentsMargins(35, 25, 35, 25);
+    layout->setSpacing(12);
+
+    // ===== TITRE =====
+
+    QLabel *titre = new QLabel("MODIFIER UNE EQUIPE");
+    titre->setObjectName("titrePrincipal");
+
+    QLabel *sousTitre = new QLabel(
+        "Modifiez les informations de votre equipe."
         );
-    titre->setStyleSheet(
-        "font-size:20px; font-weight:bold; color:#18D9EF;"
-        );
+
+    sousTitre->setObjectName("sousTitre");
+
     layout->addWidget(titre);
+    layout->addWidget(sousTitre);
 
-    // ===== TABLEAU EQUIPE : MEME COLONNES QUE L'INTERFACE PRINCIPALE =====
+    // ===== INFORMATIONS DE L'EQUIPE =====
 
-    QLabel *titreEquipe = new QLabel("Informations de l'equipe");
-    titreEquipe->setStyleSheet("font-size:16px; font-weight:bold;");
-    layout->addWidget(titreEquipe);
+    QLabel *titreInfos = new QLabel(
+        "Informations de l'equipe"
+        );
 
+    titreInfos->setStyleSheet(
+        "font-size:15px;"
+        "font-weight:bold;"
+        "color:#18D9EF;"
+        );
 
-    QTableWidget *tableEquipe = new QTableWidget(1, 10);
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    layout->addSpacing(5);
+    layout->addWidget(titreInfos);
 
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    tableEquipe->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-    tableEquipe->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    tableEquipe->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+    // ===== RECHERCHER LA LIGNE DE L'EQUIPE =====
 
-    QStringList entetes;
+    int ligneEquipe = -1;
 
-    // Récupération des titres des 8 premières colonnes
-    for (int c = 0; c < 8; ++c)
+    if (tablePrincipal)
     {
-        if (c == 7)
-            entetes << "Date_creation";
-        else
-            entetes << tablePrincipal->horizontalHeaderItem(c)->text();
-    }
-    // Ajout des clés étrangères
-    entetes << "ID Projet";
-    entetes << "ID Evaluation";
-    tableEquipe->setHorizontalHeaderLabels(entetes);
+        QString idRecherche =
+            "E" + QString::number(idEquipe);
 
-    tableEquipe->setStyleSheet(tablePrincipal->styleSheet());
-    tableEquipe->setAlternatingRowColors(true);
-    tableEquipe->verticalHeader()->setVisible(false);
-    tableEquipe->setSelectionBehavior(QAbstractItemView::SelectRows);
-
-    // Cacher definitivement la scrollbar horizontale
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    // Adapter les 10 colonnes a la largeur disponible
-    tableEquipe->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::Stretch
-        );
-
-    // Désactivation de la barre de défilement horizontale
-    tableEquipe->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    QString id = "E" + QString::number(idEquipe);
-    QString nom = equipe ? equipe->nom() : "";
-    QStringList valeursEquipe = {
-        id,
-        nom,
-        "0",
-        "6",
-        "0 H / 0 F",
-        "-",
-        "-",
-        QDate::currentDate().toString("dd/MM/yyyy"),
-        QString::number(equipe ? equipe->idProjet() : 0),
-        QString::number(equipe ? equipe->idEvaluation() : 0)
-    };
-    for (int c = 0; c < 10; ++c)
-    {
-        QTableWidgetItem *item =
-            new QTableWidgetItem(valeursEquipe[c]);
-
-        // Ajouter : Nom et Date modifiables
-        // Modifier : Nom uniquement
-        // Voir : aucun champ modifiable
-
-        bool modifiable =
-            !lectureSeule &&
-            (c == 1 || (equipe == nullptr && c == 7));
-
-        if (modifiable)
-            item->setFlags(item->flags() | Qt::ItemIsEditable);
-        else
-            item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-
-        tableEquipe->setItem(0, c, item);
-    }
-    tableEquipe->setRowHeight(0, 48);
-    QLineEdit *champNomEquipe = new QLineEdit();
-    champNomEquipe->setPlaceholderText("Nom de l'equipe");
-    champNomEquipe->setText(nom);
-
-    // ===== AFFICHAGE DU TABLEAU EQUIPE =====
-    tableEquipe->horizontalScrollBar()->hide();
-      layout->addWidget(tableEquipe);
-
-
-    champNomEquipe->hide();
-    // ===== TABLEAU DES MEMBRES =====
-
-    QLabel *titreMembres = new QLabel("Membres de l'equipe (maximum 6)");
-    titreMembres->setStyleSheet("font-size:16px; font-weight:bold;");
-    layout->addWidget(titreMembres);
- titreMembres->hide();
-
-    // ===== TABLEAU DES MEMBRES =====
-
-    int nbColonnes = 6;
-
-    QTableWidget *tableMembres = new QTableWidget(0, nbColonnes);
-    tableMembres->setEditTriggers(
-        equipe ? QAbstractItemView::NoEditTriggers
-               : QAbstractItemView::CurrentChanged |
-                     QAbstractItemView::AnyKeyPressed
-        );
-
-    tableMembres->setHorizontalHeaderLabels({
-        "ID", "Nom", "Prenom", "Sexe", "Age", "Competence"
-    });
-
-
-    // Répartition automatique de la largeur des colonnes
-    tableMembres->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-    tableMembres->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-    tableMembres->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    tableMembres->setMinimumHeight(180);
-    tableMembres->setMaximumHeight(300);
-
-    tableMembres->setAlternatingRowColors(false);
-
-    tableMembres->setStyleSheet(
-        "QTableWidget {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   font-size: 14px;"
-        "   gridline-color: #183044;"
-        "}"
-        "QTableWidget::item {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   padding: 8px;"
-        "}"
-        "QTableWidget::item:selected {"
-        "   background-color: #07111D;"
-        "   color: white;"
-        "}"
-        // Style des champs de saisie
-        "QLineEdit {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   font-size: 14px;"
-        "   font-family: Segoe UI;"
-        "   padding: 6px;"
-        "   border: none;"
-        "   border-radius: 0px;"
-        "   selection-background-color: #087E91;"
-        "   selection-color: white;"
-        "}"
-        "QComboBox {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   border: 1px solid #183044;"
-        "   border-radius: 7px;"
-        "   padding: 6px;"
-        "}"
-        "QComboBox QAbstractItemView {"
-        "   color: white;"
-        "   background-color: #07111D;"
-        "   selection-background-color: #10394B;"
-        "   selection-color: white;"
-        "}"
-        );
-
-
-    tableMembres->setAlternatingRowColors(true);
-    tableMembres->verticalHeader()->setVisible(false);
-
-    tableMembres->setSelectionBehavior(QAbstractItemView::SelectRows);
-    tableMembres->setSelectionMode(QAbstractItemView::SingleSelection);
-
-
-    tableMembres->setWordWrap(false);
-    tableMembres->setTextElideMode(Qt::ElideNone);
-
-
-    // ===== DIMENSIONS DU TABLEAU =====
-
-    tableMembres->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::Fixed
-        );
-
-    tableMembres->setColumnWidth(0, 65);   // ID
-    tableMembres->setColumnWidth(1, 145);  // Nom
-    tableMembres->setColumnWidth(2, 145);  // Prenom
-    tableMembres->setColumnWidth(3, 100);  // Sexe
-    tableMembres->setColumnWidth(4, 80);   // Age
-    tableMembres->setColumnWidth(5, 175);  // Competence
-
-    tableMembres->verticalHeader()->setDefaultSectionSize(42);
-    tableMembres->horizontalHeader()->setMinimumHeight(42);
-
-    tableMembres->setMinimumHeight(180);
-    tableMembres->setMaximumHeight(300);
-
-    tableMembres->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    tableMembres->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    tableMembres->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-
-    if (equipe)
-        membres = equipe->membres();
-    else
-        membres.clear();
-
-    // ===== AJOUTER UNE LIGNE MEMBRE =====
-
-    auto ajouterLigne = [&](const Participant *p)
-    {
-        int ligne = tableMembres->rowCount();
-        tableMembres->insertRow(ligne);
-
-        int nouvelId = p ? p->id : prochainId++;
-
-        QStringList valeurs;
-        valeurs << QString::number(nouvelId);
-
-        if (p)
-        {
-            valeurs << p->nom
-                    << p->prenom
-                    << p->sexe
-                    << QString::number(p->age)
-                    << p->competence;
-        }
-        else
-        {
-            valeurs << "" << "" << "" << "" << "";
-        }
-
-        for (int c = 0; c < 6; ++c)
+        for (int i = 0; i < tablePrincipal->rowCount(); ++i)
         {
             QTableWidgetItem *item =
-                new QTableWidgetItem(valeurs[c]);
+                tablePrincipal->item(i, 0);
 
-            item->setForeground(QBrush(Qt::white));
-
-            if (c == 0)
-                item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-            else
-                item->setFlags(item->flags() | Qt::ItemIsEditable);
-
-            if (c == 3)
+            if (item &&
+                item->text().trimmed().compare(
+                    idRecherche,
+                    Qt::CaseInsensitive
+                    ) == 0)
             {
-                QString sexe = item ? item->text().trimmed() : "";
-
-                // Création de la liste déroulante du sexe
-                QComboBox *sexeCombo = new QComboBox();
-
-                sexeCombo->addItem("Homme");
-                sexeCombo->addItem("Femme");
-
-                // Définition des dimensions de la liste
-                sexeCombo->setMinimumWidth(170);
-                sexeCombo->setMinimumHeight(32);
-                sexeCombo->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-
-                // Sélection de la valeur existante
-                int index = sexeCombo->findText(sexe, Qt::MatchFixedString);
-                sexeCombo->setCurrentIndex(index >= 0 ? index : 0);
-
-                tableMembres->setCellWidget(ligne, c, sexeCombo);
-
-                delete item;
-            }
-            else
-            {
-                tableMembres->setItem(ligne, c, item);
+                ligneEquipe = i;
+                break;
             }
         }
+    }
 
-        tableMembres->setRowHeight(ligne, 42);
+    // Récupération des valeurs du tableau principal
 
-        // Adapter les colonnes a la largeur du tableau
-        tableMembres->horizontalHeader()->setSectionResizeMode(
-            QHeaderView::Stretch
-            );
-    };
-
-    // Chargement des membres de l'equipe
-    if (equipe)
-        membres = equipe->membres();
-    else
-        membres.clear();
-
-    // Affichage des membres dans le tableau
-    for (const Participant &p : membres)
-        ajouterLigne(&p);
-    // Adaptation automatique des colonnes
-    tableMembres->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-
-    // Affichage du tableau
-    layout->addWidget(tableMembres, 1);
-    tableMembres->hide();
-    // ===== ACTUALISER LES INFORMATIONS DU TABLEAU EQUIPE =====
-
-    auto actualiserApercu = [&]()
+    auto valeurColonne = [&](int colonne,
+                             const QString &valeurDefaut)
     {
-        int hommes = 0;
-        int femmes = 0;
-        int totalAge = 0;
-        int nbAges = 0;
-        QStringList competences;
-
-        for (int i = 0; i < tableMembres->rowCount(); ++i)
+        if (ligneEquipe >= 0 &&
+            tablePrincipal &&
+            tablePrincipal->item(ligneEquipe, colonne))
         {
-            // Sexe = colonne 3 (ComboBox)
-            QComboBox *sexeCombo =
-                qobject_cast<QComboBox*>(tableMembres->cellWidget(i, 3));
+            QString valeur =
+                tablePrincipal->item(ligneEquipe, colonne)
+                    ->text().trimmed();
 
-            QString sexe = sexeCombo
-                               ? sexeCombo->currentText().trimmed()
-                               : "";
-
-            // Age = colonne 4
-            bool ok = false;
-
-            int age = tableMembres->item(i, 4)
-                          ? tableMembres->item(i, 4)->text().toInt(&ok)
-                          : 0;
-
-            if (ok)
-            {
-                totalAge += age;
-                ++nbAges;
-            }
-
-            // Competence = colonne 5
-            QString competence = tableMembres->item(i, 5)
-                                     ? tableMembres->item(i, 5)->text().trimmed()
-                                     : "";
-
-            if (!competence.isEmpty() &&
-                !competences.contains(competence, Qt::CaseInsensitive))
-            {
-                competences.append(competence);
-            }
+            if (!valeur.isEmpty())
+                return valeur;
         }
 
-        tableEquipe->item(0, 1)->setText(
-            tableEquipe->item(0, 1)->text().trimmed()
-            );
-
-        tableEquipe->item(0, 2)->setText(
-            QString::number(tableMembres->rowCount())
-            );
-
-        tableEquipe->item(0, 3)->setText("6");
-
-        tableEquipe->item(0, 4)->setText(
-            QString::number(hommes) + " H / " +
-            QString::number(femmes) + " F"
-            );
-
-        tableEquipe->item(0, 5)->setText(
-            nbAges > 0
-                ? QString::number(double(totalAge) / nbAges, 'f', 1)
-                : "-"
-            );
-
-        tableEquipe->item(0, 6)->setText(
-            competences.isEmpty() ? "-" : competences.join(", ")
-            );
+        return valeurDefaut;
     };
 
-    QObject::connect(
-        tableMembres,
-        &QTableWidget::itemChanged,
-        &dialog,
-        [&](QTableWidgetItem *item)
-        {
-            actualiserApercu();
+    // ===== CREATION DES CHAMPS =====
 
-            if (item)
-                tableMembres->resizeColumnToContents(item->column());
-        }
+    auto creerChamp = [](const QString &valeur,
+                         bool modifiable = false)
+    {
+        QLineEdit *champ = new QLineEdit(valeur);
+
+        champ->setReadOnly(!modifiable);
+        champ->setMinimumHeight(36);
+
+        return champ;
+    };
+
+    QLineEdit *champID = creerChamp(
+        "E" + QString::number(idEquipe)
         );
 
-    actualiserApercu();
+    QLineEdit *champNom = creerChamp(
+        equipe ? equipe->nom() : "",
+        equipe != nullptr && !lectureSeule
+        );
 
+    champNom->setPlaceholderText(
+        "Nom de l'equipe"
+        );
 
-    // ===== ENREGISTRER / ANNULER =====
+    QLineEdit *champMembres = creerChamp(
+        valeurColonne(
+            2,
+            equipe ? QString::number(equipe->taille()) : "0"
+            )
+        );
+
+    QLineEdit *champCapacite = creerChamp("6");
+
+    QLineEdit *champSexe = creerChamp(
+        valeurColonne(
+            4,
+            equipe
+                ? QString("%1 H / %2 F")
+                      .arg(equipe->hommes())
+                      .arg(equipe->femmes())
+                : "-"
+            )
+        );
+
+    QLineEdit *champAge = creerChamp(
+        valeurColonne(
+            5,
+            equipe
+                ? QString::number(equipe->ageMoyen(), 'f', 1)
+                : "-"
+            )
+        );
+
+    QLineEdit *champCompetences = creerChamp(
+        valeurColonne(6, "-")
+        );
+
+    QLineEdit *champDate = creerChamp(
+        valeurColonne(7, "-")
+        );
+
+    QLineEdit *champProjet = creerChamp(
+        equipe
+            ? QString::number(equipe->idProjet())
+            : "-"
+        );
+
+    QLineEdit *champEvaluation = creerChamp(
+        equipe
+            ? QString::number(equipe->idEvaluation())
+            : "-"
+        );
+
+    // ===== DISPOSITION VERTICALE =====
+
+    QFormLayout *form = new QFormLayout();
+
+    form->setHorizontalSpacing(25);
+    form->setVerticalSpacing(9);
+
+    form->setLabelAlignment(
+        Qt::AlignLeft | Qt::AlignVCenter
+        );
+
+    form->setFieldGrowthPolicy(
+        QFormLayout::ExpandingFieldsGrow
+        );
+
+    form->addRow("ID Equipe", champID);
+    form->addRow("Nom Equipe", champNom);
+    form->addRow("Nombre de membres", champMembres);
+    form->addRow("Capacite maximale", champCapacite);
+    form->addRow("Repartition des sexes", champSexe);
+    form->addRow("Age moyen", champAge);
+    form->addRow("Competences", champCompetences);
+    form->addRow("Date de creation", champDate);
+    form->addRow("ID Projet", champProjet);
+    form->addRow("ID Evaluation", champEvaluation);
+
+    layout->addLayout(form, 1);
+
+    // ===== BOUTONS =====
 
     QHBoxLayout *boutons = new QHBoxLayout();
 
-    QPushButton *enregistrer = new QPushButton("Enregistrer");
+    QPushButton *enregistrer =
+        new QPushButton(lectureSeule ? "Fermer" : "Enregistrer");
+
     QPushButton *annuler = new QPushButton("Annuler");
 
     enregistrer->setObjectName("primary");
+    annuler->setObjectName("secondary");
 
-    // Entrer Enregistrer
     enregistrer->setDefault(true);
     enregistrer->setAutoDefault(true);
-
-    // EscapeAnnuler
     annuler->setAutoDefault(false);
 
     boutons->addStretch();
@@ -1117,114 +972,289 @@ bool ouvrirPopupGestionEquipe(
 
     layout->addLayout(boutons);
 
-    QObject::connect(enregistrer, &QPushButton::clicked, &dialog, [&]()
-                     {
-                         QString nom = tableEquipe->item(0, 1)->text().trimmed();
-                         if (nom.isEmpty())
-                         {
-                             QMessageBox::warning(
-                                 &dialog, "Erreur",
-                                 "Le nom de l'equipe est obligatoire."
-                                 );
-                             return;
-                         }
-                         // Modification : changer uniquement le nom de l'equipe
-                         if (equipe)
-                         {
-                             nomEquipe = nom;
-                             membres = equipe->membres();
-                             dialog.accept();
-                             return;
-                         }
+    // ===== VALIDATION =====
 
-                         QVector<Participant> nouveauxMembres;
+    QObject::connect(
+        enregistrer,
+        &QPushButton::clicked,
+        &dialog,
+        [&]()
+        {
+            if (lectureSeule)
+            {
+                dialog.accept();
+                return;
+            }
 
-                         for (int i = 0; i < tableMembres->rowCount(); ++i)
-                         {
-                             // ID
-                             if (!tableMembres->item(i, 0))
-                             {
-                                 QMessageBox::warning(&dialog, "Erreur", "ID invalide.");
-                                 return;
-                             }
+            QString nom = champNom->text().trimmed();
 
-                             int idMembre = tableMembres->item(i, 0)->text().toInt();
+            if (nom.isEmpty())
+            {
+                QMessageBox::warning(
+                    &dialog,
+                    "Erreur",
+                    "Le nom de l'equipe est obligatoire."
+                    );
 
-                             // Nom
-                             QString nomMembre = tableMembres->item(i, 1)
-                                                     ? tableMembres->item(i, 1)->text().trimmed()
-                                                     : "";
+                champNom->setFocus();
+                return;
+            }
 
-                             // Prenom
-                             QString prenom = tableMembres->item(i, 2)
-                                                  ? tableMembres->item(i, 2)->text().trimmed()
-                                                  : "";
+            nomEquipe = nom;
 
-                             // Sexe : récupération depuis ComboBox
-                             QComboBox *sexeCombo =
-                                 qobject_cast<QComboBox*>(tableMembres->cellWidget(i, 3));
+            if (equipe)
+                membres = equipe->membres();
+            else
+                membres.clear();
 
-                             QString sexe = sexeCombo
-                                                ? sexeCombo->currentText().trimmed()
-                                                : "";
+            dialog.accept();
+        }
+        );
 
-                             // Age
-                             QString ageText = tableMembres->item(i, 4)
-                                                   ? tableMembres->item(i, 4)->text().trimmed()
-                                                   : "";
+    // ===== ANNULER =====
 
-                             // Competence
-                             QString competence = tableMembres->item(i, 5)
-                                                      ? tableMembres->item(i, 5)->text().trimmed()
-                                                      : "";
+    QObject::connect(
+        annuler,
+        &QPushButton::clicked,
+        &dialog,
+        &QDialog::reject
+        );
 
-                             bool ageValide = false;
-                             int age = ageText.toInt(&ageValide);
-
-                             if (nomMembre.isEmpty() ||
-                                 prenom.isEmpty() ||
-                                 competence.isEmpty() ||
-                                 !ageValide ||
-                                 age < 16 || age > 80 ||
-                                 (sexe != "Homme" && sexe != "Femme"))
-
-                             {
-                                 QMessageBox::warning(
-                                     &dialog,
-                                     "Erreur",
-                                     "Verifiez les informations du membre."
-                                     );
-                                 return;
-                             }
-
-                             Participant nouveau;
-
-                             nouveau.id = idMembre;
-                             nouveau.nom = nomMembre;
-                             nouveau.prenom = prenom;
-                             nouveau.sexe = sexe;
-                             nouveau.age = age;
-                             nouveau.competence = competence;
-
-                             nouveauxMembres.append(nouveau);
-                         }
-
-                         nomEquipe = nom;
-                         membres = nouveauxMembres;
-                         dialog.accept();
-                     });
-
-    QObject::connect(annuler, &QPushButton::clicked,
-                     &dialog, &QDialog::reject);
     if (lectureSeule)
-    {
-        tableEquipe->setEditTriggers(QAbstractItemView::NoEditTriggers);
-        tableMembres->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-        enregistrer->setText("Fermer");
-        enregistrer->setObjectName("");
         annuler->hide();
-    }
+
+    champNom->setFocus();
+
+    return dialog.exec() == QDialog::Accepted;
+}
+// =====================================================
+// POPUP AJOUT EQUIPE : FORMULAIRE VERTICAL
+// =====================================================
+
+bool ouvrirPopupAjoutEquipe(
+    QWidget *parent,
+    int idEquipe,
+    QString &nomEquipe,
+    QVector<Participant> &membres)
+{
+    QDialog dialog(parent);
+
+    dialog.setWindowTitle("Ajouter equipe");
+    dialog.setFixedSize(780, 690);
+
+    dialog.setStyleSheet(
+        "QDialog {"
+        " background-color: #050B14;"
+        "}"
+        "QLabel {"
+        " color: #C7D3E0;"
+        " font-family: 'Segoe UI';"
+        " font-size: 13px;"
+        "}"
+        "QLabel#titrePrincipal {"
+        " color: #18D9EF;"
+        " font-size: 21px;"
+        " font-weight: bold;"
+        "}"
+        "QLabel#sousTitre {"
+        " color: #8193A8;"
+        " font-size: 12px;"
+        "}"
+        "QLineEdit {"
+        " color: white;"
+        " background-color: #07111D;"
+        " border: 1px solid #1C3448;"
+        " border-radius: 7px;"
+        " padding: 8px 10px;"
+        " font-size: 13px;"
+        " min-height: 20px;"
+        "}"
+        "QLineEdit:focus {"
+        " border: 1px solid #18D9EF;"
+        "}"
+        "QLineEdit[readOnly=\"true\"] {"
+        " color: #91A3B8;"
+        " background-color: #091522;"
+        " border: 1px solid #142A3C;"
+        "}"
+        "QPushButton {"
+        " padding: 10px 24px;"
+        " border-radius: 7px;"
+        " font-size: 13px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton#primary {"
+        " background-color: #18D9EF;"
+        " color: #050B14;"
+        " border: none;"
+        "}"
+        "QPushButton#primary:hover {"
+        " background-color: #45E6F5;"
+        "}"
+        "QPushButton#secondary {"
+        " background-color: #142334;"
+        " color: #D5E0EC;"
+        " border: 1px solid #263E53;"
+        "}"
+        "QPushButton#secondary:hover {"
+        " background-color: #20364A;"
+        "}"
+        );
+
+    QVBoxLayout *layout = new QVBoxLayout(&dialog);
+
+    layout->setContentsMargins(35, 25, 35, 25);
+    layout->setSpacing(12);
+
+    // ===== TITRE =====
+
+    QLabel *titre = new QLabel("AJOUTER UNE EQUIPE");
+    titre->setObjectName("titrePrincipal");
+
+    QLabel *sousTitre = new QLabel(
+        "Remplissez les informations de votre equipe."
+        );
+
+    sousTitre->setObjectName("sousTitre");
+
+    layout->addWidget(titre);
+    layout->addWidget(sousTitre);
+
+    // ===== INFORMATIONS DE L'EQUIPE =====
+
+    QLabel *titreInfos = new QLabel("Informations de l'equipe");
+    titreInfos->setStyleSheet(
+        "font-size:15px;"
+        "font-weight:bold;"
+        "color:#18D9EF;"
+        );
+
+    layout->addSpacing(5);
+    layout->addWidget(titreInfos);
+
+    // Création des champs du formulaire
+
+    auto creerChamp = [](const QString &valeur, bool modifiable = false)
+    {
+        QLineEdit *champ = new QLineEdit(valeur);
+        champ->setReadOnly(!modifiable);
+        champ->setMinimumHeight(36);
+        return champ;
+    };
+
+    QLineEdit *champID = creerChamp(
+        "E" + QString::number(idEquipe)
+        );
+
+    QLineEdit *champNom = creerChamp("", true);
+
+    champNom->setPlaceholderText("Saisir le nom de l'equipe");
+
+    QLineEdit *champMembres = creerChamp("0");
+
+    QLineEdit *champCapacite = creerChamp("6");
+
+    QLineEdit *champSexe = creerChamp("0 H / 0 F");
+
+    QLineEdit *champAge = creerChamp("-");
+
+    QLineEdit *champCompetences = creerChamp("-");
+
+    QLineEdit *champDate = creerChamp(
+        QDate::currentDate().toString("dd/MM/yyyy")
+        );
+
+    QLineEdit *champProjet = creerChamp("-");
+
+    QLineEdit *champEvaluation = creerChamp("-");
+
+    // ===== DISPOSITION VERTICALE =====
+
+    QFormLayout *form = new QFormLayout();
+
+    form->setHorizontalSpacing(25);
+    form->setVerticalSpacing(9);
+
+    form->setLabelAlignment(
+        Qt::AlignLeft | Qt::AlignVCenter
+        );
+
+    form->setFieldGrowthPolicy(
+        QFormLayout::ExpandingFieldsGrow
+        );
+
+    form->addRow("ID Equipe", champID);
+    form->addRow("Nom Equipe", champNom);
+    form->addRow("Nombre de membres", champMembres);
+    form->addRow("Capacite maximale", champCapacite);
+    form->addRow("Repartition des sexes", champSexe);
+    form->addRow("Age moyen", champAge);
+    form->addRow("Competences", champCompetences);
+    form->addRow("Date de creation", champDate);
+    form->addRow("ID Projet", champProjet);
+    form->addRow("ID Evaluation", champEvaluation);
+
+    layout->addLayout(form, 1);
+
+    // ===== BOUTONS =====
+
+    QHBoxLayout *boutons = new QHBoxLayout();
+
+    QPushButton *ajouter = new QPushButton("Ajouter");
+    QPushButton *annuler = new QPushButton("Annuler");
+
+    ajouter->setObjectName("primary");
+    annuler->setObjectName("secondary");
+
+    ajouter->setDefault(true);
+    ajouter->setAutoDefault(true);
+    annuler->setAutoDefault(false);
+
+    boutons->addStretch();
+    boutons->addWidget(ajouter);
+    boutons->addWidget(annuler);
+
+    layout->addLayout(boutons);
+
+    // ===== VALIDATION =====
+
+    QObject::connect(
+        ajouter,
+        &QPushButton::clicked,
+        &dialog,
+        [&]()
+        {
+            QString nom = champNom->text().trimmed();
+
+            if (nom.isEmpty())
+            {
+                QMessageBox::warning(
+                    &dialog,
+                    "Erreur",
+                    "Le nom de l'equipe est obligatoire."
+                    );
+
+                champNom->setFocus();
+                return;
+            }
+
+            nomEquipe = nom;
+
+            // Les membres seront affectés automatiquement par la suite.
+            membres.clear();
+
+            dialog.accept();
+        }
+        );
+
+    QObject::connect(
+        annuler,
+        &QPushButton::clicked,
+        &dialog,
+        &QDialog::reject
+        );
+
+    champNom->setFocus();
 
     return dialog.exec() == QDialog::Accepted;
 }
@@ -1239,12 +1269,9 @@ void MainWindow::ajouterEquipe()
     QString nom;
     QVector<Participant> membres;
 
-    if (!ouvrirPopupGestionEquipe(
+    if (!ouvrirPopupAjoutEquipe(
             this,
-            m_table,
-            nullptr,
             prochainIdEquipe(),
-            prochainIdParticipant(),
             nom,
             membres))
         return;
@@ -1310,10 +1337,9 @@ void MainWindow::modifierEquipe(int index)
             m_equipes[index].id(),
             prochainIdParticipant(),
             nom,
-            membres))
+            membres,
+            false))
         return;
-
-
     for (int i = 0; i < m_equipes.size(); ++i)
     {
         if (i != index &&
@@ -1353,7 +1379,8 @@ void MainWindow::modifierEquipe(int index)
 
 
 /* =====================================================
-   SUPPRIMER
+   SUPPRIMER EQUIPE
+   FORMULAIRE VERTICAL
    ===================================================== */
 
 void MainWindow::supprimerEquipe(int index)
@@ -1362,163 +1389,229 @@ void MainWindow::supprimerEquipe(int index)
         return;
 
     const Equipe &e = m_equipes[index];
+    // ===== RECUPERATION DES DONNEES DU TABLEAU PRINCIPAL =====
 
-    // ================= DIALOG =================
+    auto lireValeur = [&](int colonne, const QString &defaut)
+    {
+        if (m_table &&
+            index >= 0 &&
+            index < m_table->rowCount() &&
+            m_table->item(index, colonne))
+        {
+            QString valeur =
+                m_table->item(index, colonne)->text().trimmed();
+
+            if (!valeur.isEmpty())
+                return valeur;
+        }
+
+        return defaut;
+    };
+
+    QString idText = lireValeur(
+        0, "E" + QString::number(e.id())
+        );
+
+    QString nomText = lireValeur(1, e.nom());
+
+    QString nbMembresText = lireValeur(2, "-");
+
+    QString capaciteText = lireValeur(3, "6");
+
+    QString sexeText = lireValeur(4, "-");
+
+    QString ageText = lireValeur(5, "-");
+
+    QString competenceText = lireValeur(6, "-");
+
+    QString dateText = lireValeur(7, "-");
+
+    // ===== DIALOG =====
 
     QDialog dialog(this);
+
     dialog.setWindowTitle("Suppression de l'equipe");
-    dialog.resize(1070, 650);
+    dialog.setFixedSize(780, 690);
+
+    dialog.setStyleSheet(
+        "QDialog {"
+        " background-color: #050B14;"
+        "}"
+        "QLabel {"
+        " color: #C7D3E0;"
+        " font-family: 'Segoe UI';"
+        " font-size: 13px;"
+        "}"
+        "QLabel#titrePrincipal {"
+        " color: #18D9EF;"
+        " font-size: 21px;"
+        " font-weight: bold;"
+        "}"
+        "QLabel#sousTitre {"
+        " color: #8193A8;"
+        " font-size: 12px;"
+        "}"
+        "QLineEdit {"
+        " color: #91A3B8;"
+        " background-color: #091522;"
+        " border: 1px solid #142A3C;"
+        " border-radius: 7px;"
+        " padding: 8px 10px;"
+        " font-size: 13px;"
+        " min-height: 20px;"
+        "}"
+        "QPushButton {"
+        " padding: 10px 24px;"
+        " border-radius: 7px;"
+        " font-size: 13px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton#primary {"
+        " background-color: #18D9EF;"
+        " color: #050B14;"
+        " border: none;"
+        "}"
+        "QPushButton#primary:hover {"
+        " background-color: #45E6F5;"
+        "}"
+        "QPushButton#secondary {"
+        " background-color: #142334;"
+        " color: #D5E0EC;"
+        " border: 1px solid #263E53;"
+        "}"
+        "QPushButton#secondary:hover {"
+        " background-color: #20364A;"
+        "}"
+        );
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
-    QLabel *titre = new QLabel("SUPPRESSION DE L'EQUIPE");
+    layout->setContentsMargins(35, 25, 35, 25);
+    layout->setSpacing(12);
 
-    titre->setStyleSheet(
-        "font-size:20px;"
+    // ===== TITRE =====
+
+    QLabel *titre = new QLabel("SUPPRESSION DE L'EQUIPE");
+    titre->setObjectName("titrePrincipal");
+
+    QLabel *sousTitre = new QLabel(
+        "Verification des informations avant suppression."
+        );
+
+    sousTitre->setObjectName("sousTitre");
+
+    layout->addWidget(titre);
+    layout->addWidget(sousTitre);
+
+    // ===== INFORMATIONS DE L'EQUIPE =====
+
+    QLabel *titreInfos = new QLabel(
+        "Informations de l'equipe"
+        );
+
+    titreInfos->setStyleSheet(
+        "font-size:15px;"
         "font-weight:bold;"
         "color:#18D9EF;"
         );
 
-    layout->addWidget(titre);
+    layout->addSpacing(5);
+    layout->addWidget(titreInfos);
 
-    // ================= TABLEAU =================
+    // ===== CREATION DES CHAMPS =====
 
-    QTableWidget *table = new QTableWidget(1, 10);
-
-    table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-
-    QStringList entetes;
-
-    for (int c = 0; c < 8; ++c)
+    auto creerChamp = [](const QString &valeur)
     {
-        if (c == 7)
-            entetes << "Date_creation";
-        else if (m_table && m_table->horizontalHeaderItem(c))
-            entetes << m_table->horizontalHeaderItem(c)->text();
-        else
-            entetes << QString("Colonne %1").arg(c + 1);
-    }
+        QLineEdit *champ = new QLineEdit(valeur);
 
-    entetes << "ID Projet";
-    entetes << "ID Evaluation";
+        champ->setReadOnly(true);
+        champ->setMinimumHeight(36);
 
-    table->setHorizontalHeaderLabels(entetes);
-    table->setStyleSheet(m_table->styleSheet());
-
-    QVector<Participant> membres = e.membres();
-
-    int hommes = 0;
-    int femmes = 0;
-    int sommeAge = 0;
-
-    QStringList competences;
-
-    for (const Participant &p : membres)
-    {
-        QString sexe = p.sexe.trimmed().toLower();
-
-        if (sexe == "homme" || sexe == "h")
-            hommes++;
-        else if (sexe == "femme" || sexe == "f")
-            femmes++;
-
-        sommeAge += p.age;
-
-        QString comp = p.competence.trimmed();
-
-        if (!comp.isEmpty() && comp != "-" &&
-            !competences.contains(comp))
-        {
-            competences << comp;
-        }
-    }
-
-    QString sexeText = QString("%1 H / %2 F")
-                           .arg(hommes)
-                           .arg(femmes);
-
-    QString ageText = membres.isEmpty()
-                          ? "-"
-                          : QString::number(
-                                qRound((double)sommeAge / membres.size())
-                                );
-
-    QString competenceText = competences.isEmpty()
-                                 ? "-"
-                                 : competences.join(", ");
-
-    QString dateText = "-";
-
-    if (m_table && index < m_table->rowCount() &&
-        m_table->item(index, 7))
-    {
-        dateText = m_table->item(index, 7)->text();
-    }
-
-    QStringList valeurs = {
-        "E" + QString::number(e.id()),
-        e.nom(),
-        QString::number(e.taille()),
-        "6",
-        sexeText,
-        ageText,
-        competenceText,
-        dateText,
-        QString::number(e.idProjet()),
-        QString::number(e.idEvaluation())
+        return champ;
     };
 
-    for (int c = 0; c < 10; ++c)
-    {
-        QTableWidgetItem *item = new QTableWidgetItem(valeurs[c]);
+    // Recuperation directe des valeurs du tableau principal
 
-        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
-
-        table->setItem(0, c, item);
-    }
-
-    table->setRowHeight(0, 48);
-
-    table->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::ResizeToContents
+    QLineEdit *champID = creerChamp(
+        lireValeur(0, "E" + QString::number(e.id()))
         );
 
-    table->horizontalHeader()->setSectionResizeMode(
-        1, QHeaderView::Interactive
+    QLineEdit *champNom = creerChamp(
+        lireValeur(1, e.nom())
         );
 
-    table->setColumnWidth(1, 180);
+    QLineEdit *champMembres = creerChamp(
+        lireValeur(2, "0")
+        );
 
-    table->verticalHeader()->setVisible(false);
+    QLineEdit *champCapacite = creerChamp(
+        lireValeur(3, "6")
+        );
 
-    table->setEditTriggers(QAbstractItemView::NoEditTriggers);
+    QLineEdit *champSexe = creerChamp(
+        lireValeur(4, "-")
+        );
 
-    table->setSelectionBehavior(QAbstractItemView::SelectRows);
+    QLineEdit *champAge = creerChamp(
+        lireValeur(5, "-")
+        );
 
-    layout->addWidget(table);
+    QLineEdit *champCompetences = creerChamp(
+        lireValeur(6, "-")
+        );
 
-    // ================= BOUTONS =================
+    QLineEdit *champDate = creerChamp(
+        lireValeur(7, "-")
+        );
+
+    // Ces deux informations ne sont pas affichees
+    // dans les colonnes actuelles du tableau principal.
+
+    QLineEdit *champProjet = creerChamp(
+        QString::number(e.idProjet())
+        );
+
+    QLineEdit *champEvaluation = creerChamp(
+        QString::number(e.idEvaluation())
+        );
+
+    // ===== DISPOSITION VERTICALE =====
+
+    QFormLayout *form = new QFormLayout();
+
+    form->setHorizontalSpacing(25);
+    form->setVerticalSpacing(9);
+
+    form->setLabelAlignment(
+        Qt::AlignLeft | Qt::AlignVCenter
+        );
+
+    form->setFieldGrowthPolicy(
+        QFormLayout::ExpandingFieldsGrow
+        );
+
+    form->addRow("ID Equipe", champID);
+    form->addRow("Nom Equipe", champNom);
+    form->addRow("Nombre de membres", champMembres);
+    form->addRow("Capacite maximale", champCapacite);
+    form->addRow("Repartition des sexes", champSexe);
+    form->addRow("Age moyen", champAge);
+    form->addRow("Competences", champCompetences);
+    form->addRow("Date de creation", champDate);
+    form->addRow("ID Projet", champProjet);
+    form->addRow("ID Evaluation", champEvaluation);
+
+    layout->addLayout(form, 1);
+
+    // ===== BOUTONS =====
 
     QHBoxLayout *boutons = new QHBoxLayout();
 
     QPushButton *btnSupprimer = new QPushButton("Supprimer");
     QPushButton *btnAnnuler = new QPushButton("Annuler");
 
-    btnSupprimer->setStyleSheet(
-        "background-color:#18D9EF;"
-        "color:#050B14;"
-        "padding:10px 20px;"
-        "border-radius:7px;"
-        "font-weight:bold;"
-        "border:none;"
-        );
-
-    btnAnnuler->setStyleSheet(
-        "background-color:#34495E;"
-        "color:white;"
-        "padding:10px 20px;"
-        "border-radius:7px;"
-        );
+    btnSupprimer->setObjectName("primary");
+    btnAnnuler->setObjectName("secondary");
 
     boutons->addStretch();
     boutons->addWidget(btnSupprimer);
@@ -1526,63 +1619,69 @@ void MainWindow::supprimerEquipe(int index)
 
     layout->addLayout(boutons);
 
-    // ================= ANNULER =================
+    // ===== ANNULER =====
 
-    connect(btnAnnuler, &QPushButton::clicked,
-            &dialog, &QDialog::reject);
+    connect(
+        btnAnnuler,
+        &QPushButton::clicked,
+        &dialog,
+        &QDialog::reject
+        );
 
-    // ================= SUPPRIMER =================
+    // ===== SUPPRIMER =====
 
-    connect(btnSupprimer, &QPushButton::clicked,
-            &dialog, [this, index, &dialog]()
+    connect(
+        btnSupprimer,
+        &QPushButton::clicked,
+        &dialog,
+        [this, index, &dialog]()
+        {
+            if (index < 0 || index >= m_equipes.size())
+                return;
+
+            if (m_equipes.size() == 1 &&
+                !m_participants.isEmpty())
             {
-                if (index < 0 || index >= m_equipes.size())
-                    return;
+                QMessageBox::warning(
+                    &dialog,
+                    "Impossible",
+                    "Gardez au moins une equipe."
+                    );
 
-                if (m_equipes.size() == 1 && !m_participants.isEmpty())
-                {
-                    QMessageBox::warning(
-                        &dialog,
-                        "Impossible",
-                        "Gardez au moins une equipe."
-                        );
-                    return;
-                }
+                return;
+            }
 
+            // Appel de la méthode supprimer() du Modèle
 
-                // Appel de la méthode supprimer() du Modèle
-                int idEquipe = m_equipes[index].id();
+            int idEquipe = m_equipes[index].id();
 
-                bool test = Etmp.supprimer(idEquipe);
+            bool test = Etmp.supprimer(idEquipe);
 
-                if (test)
-                {
+            if (test)
+            {
+                rafraichir();
 
-                    rafraichir();
+                afficherNotification("Equipe supprimee.");
 
-                    afficherNotification("Equipe supprimee.");
-
-                    dialog.accept();
-                }
-                else
-                {
-                    QMessageBox::critical(
-                        &dialog,
-                        "Erreur",
-                        "Suppression non effectuee."
-                        );
-                }
-
-
-            });
+                dialog.accept();
+            }
+            else
+            {
+                QMessageBox::critical(
+                    &dialog,
+                    "Erreur",
+                    "Suppression non effectuee."
+                    );
+            }
+        }
+        );
 
     dialog.exec();
 }
-
 /* =====================================================
    VOIR EQUIPE
+   FORMULAIRE VERTICAL
    ===================================================== */
-
 
 void MainWindow::voirEquipe(int index)
 {
@@ -1591,146 +1690,215 @@ void MainWindow::voirEquipe(int index)
 
     const Equipe &e = m_equipes[index];
 
+    // ===== DIALOG =====
+
     QDialog dialog(this);
+
     dialog.setWindowTitle("Informations de l'equipe");
-    dialog.resize(1070, 650);
+    dialog.setFixedSize(780, 690);
+
+    dialog.setStyleSheet(
+        "QDialog {"
+        " background-color: #050B14;"
+        "}"
+        "QLabel {"
+        " color: #C7D3E0;"
+        " font-family: 'Segoe UI';"
+        " font-size: 13px;"
+        "}"
+        "QLabel#titrePrincipal {"
+        " color: #18D9EF;"
+        " font-size: 21px;"
+        " font-weight: bold;"
+        "}"
+        "QLabel#sousTitre {"
+        " color: #8193A8;"
+        " font-size: 12px;"
+        "}"
+        "QLineEdit {"
+        " color: #91A3B8;"
+        " background-color: #091522;"
+        " border: 1px solid #142A3C;"
+        " border-radius: 7px;"
+        " padding: 8px 10px;"
+        " font-size: 13px;"
+        " min-height: 20px;"
+        "}"
+        "QPushButton {"
+        " padding: 10px 24px;"
+        " border-radius: 7px;"
+        " font-size: 13px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton#primary {"
+        " background-color: #18D9EF;"
+        " color: #050B14;"
+        " border: none;"
+        "}"
+        "QPushButton#primary:hover {"
+        " background-color: #45E6F5;"
+        "}"
+        );
 
     QVBoxLayout *layout = new QVBoxLayout(&dialog);
 
+    layout->setContentsMargins(35, 25, 35, 25);
+    layout->setSpacing(12);
+
+    // ===== TITRE =====
+
     QLabel *titre = new QLabel("INFORMATIONS DE L'EQUIPE");
-    titre->setStyleSheet(
-        "font-size:20px;"
+
+    titre->setObjectName("titrePrincipal");
+
+    QLabel *sousTitre = new QLabel(
+        "Consultez les informations de votre equipe."
+        );
+
+    sousTitre->setObjectName("sousTitre");
+
+    layout->addWidget(titre);
+    layout->addWidget(sousTitre);
+
+    // ===== INFORMATIONS DE L'EQUIPE =====
+
+    QLabel *titreInfos = new QLabel(
+        "Informations de l'equipe"
+        );
+
+    titreInfos->setStyleSheet(
+        "font-size:15px;"
         "font-weight:bold;"
         "color:#18D9EF;"
         );
 
-    layout->addWidget(titre);
+    layout->addSpacing(5);
+    layout->addWidget(titreInfos);
 
-    // Tableau avec les memes colonnes que Modifier
-    QTableWidget *table = new QTableWidget(1, 10);
-    table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    // ===== RECUPERATION DES DONNEES DU TABLEAU PRINCIPAL =====
 
-    QStringList entetes;
+    int ligneEquipe = -1;
 
-    for (int c = 0; c < 8; ++c)
+    QString idRecherche = "E" + QString::number(e.id());
+
+    for (int i = 0; m_table && i < m_table->rowCount(); ++i)
     {
-        if (c == 7)
-            entetes << "Date_creation";
-        else
-            entetes << m_table->horizontalHeaderItem(c)->text();
-    }
+        QTableWidgetItem *item = m_table->item(i, 0);
 
-    entetes << "ID Projet";
-    entetes << "ID Evaluation";
-
-    table->setHorizontalHeaderLabels(entetes);
-
-    table->setStyleSheet(m_table->styleSheet());
-    QVector<Participant> membres = e.membres();
-
-    int hommes = 0;
-    int femmes = 0;
-    int sommeAge = 0;
-
-    QStringList competences;
-
-    for (const Participant &p : membres)
-    {
-        QString sexe = p.sexe.trimmed().toLower();
-
-        if (sexe == "homme" || sexe == "h")
-            hommes++;
-        else if (sexe == "femme" || sexe == "f")
-            femmes++;
-
-        sommeAge += p.age;
-
-        QString comp = p.competence.trimmed();
-
-        if (!comp.isEmpty() && comp != "-" &&
-            !competences.contains(comp))
+        if (item && item->text().trimmed().compare(
+                        idRecherche,
+                        Qt::CaseInsensitive) == 0)
         {
-            competences << comp;
+            ligneEquipe = i;
+            break;
         }
     }
 
-    QString sexeText = QString("%1 H / %2 F")
-                           .arg(hommes)
-                           .arg(femmes);
-
-    QString ageText = membres.isEmpty()
-                          ? "-"
-                          : QString::number(
-                                qRound((double)sommeAge / membres.size())
-                                );
-
-    QString competenceText = competences.isEmpty()
-                                 ? "-"
-                                 : competences.join(", ");
-
-    QString dateText = "-";
-
-    if (m_table && index < m_table->rowCount() &&
-        m_table->item(index, 7))
+    auto lireValeur = [&](int colonne, const QString &defaut)
     {
-        dateText = m_table->item(index, 7)->text();
+        if (ligneEquipe >= 0 &&
+            m_table->item(ligneEquipe, colonne))
+        {
+            QString valeur =
+                m_table->item(ligneEquipe, colonne)->text().trimmed();
 
-    }
-   table->setColumnWidth(7, 150);
-   table->setHorizontalHeaderLabels(entetes);
+            if (!valeur.isEmpty())
+                return valeur;
+        }
 
-    QStringList valeurs = {
-        "E" + QString::number(e.id()),
-        e.nom(),
-        QString::number(e.taille()),
-        "6",
-        sexeText,
-        ageText,
-        competenceText,
-        dateText,
-        QString::number(e.idProjet()),
-        QString::number(e.idEvaluation())
+        return defaut;
     };
 
-    for (int c = 0; c < 10; ++c)
+    // ===== CREATION DES CHAMPS =====
+
+    auto creerChamp = [](const QString &valeur)
     {
-        QTableWidgetItem *item =
-            new QTableWidgetItem(valeurs[c]);
+        QLineEdit *champ = new QLineEdit(valeur);
+        champ->setReadOnly(true);
+        champ->setMinimumHeight(36);
+        return champ;
+    };
 
-        item->setFlags(
-            item->flags() & ~Qt::ItemIsEditable
-            );
+    QLineEdit *champID = creerChamp(idRecherche);
 
-        table->setItem(0, c, item);
-    }
-
-    table->setRowHeight(0, 48);
-
-    table->horizontalHeader()->setSectionResizeMode(
-        QHeaderView::ResizeToContents
+    QLineEdit *champNom = creerChamp(
+        lireValeur(1, e.nom())
         );
 
-    table->horizontalHeader()->setSectionResizeMode(
-        1, QHeaderView::Interactive
+    QLineEdit *champMembres = creerChamp(
+        lireValeur(2, "0")
         );
 
-    table->setColumnWidth(1, 180);
-
-    table->verticalHeader()->setVisible(false);
-
-    table->setEditTriggers(
-        QAbstractItemView::NoEditTriggers
+    QLineEdit *champCapacite = creerChamp(
+        lireValeur(3, "6")
         );
 
-    table->setSelectionBehavior(
-        QAbstractItemView::SelectRows
+    QLineEdit *champSexe = creerChamp(
+        lireValeur(4, "-")
         );
 
-    layout->addWidget(table);
+    QLineEdit *champAge = creerChamp(
+        lireValeur(5, "-")
+        );
+
+    QLineEdit *champCompetences = creerChamp(
+        lireValeur(6, "-")
+        );
+
+    QLineEdit *champDate = creerChamp(
+        lireValeur(7, "-")
+        );
+
+    QLineEdit *champProjet = creerChamp(
+        QString::number(e.idProjet())
+        );
+
+    QLineEdit *champEvaluation = creerChamp(
+        QString::number(e.idEvaluation())
+        );
+
+    // ===== DISPOSITION VERTICALE =====
+
+    QFormLayout *form = new QFormLayout();
+
+    form->setHorizontalSpacing(25);
+    form->setVerticalSpacing(9);
+
+    form->setLabelAlignment(
+        Qt::AlignLeft | Qt::AlignVCenter
+        );
+
+    form->setFieldGrowthPolicy(
+        QFormLayout::ExpandingFieldsGrow
+        );
+
+    form->addRow("ID Equipe", champID);
+    form->addRow("Nom Equipe", champNom);
+    form->addRow("Nombre de membres", champMembres);
+    form->addRow("Capacite maximale", champCapacite);
+    form->addRow("Repartition des sexes", champSexe);
+    form->addRow("Age moyen", champAge);
+    form->addRow("Competences", champCompetences);
+    form->addRow("Date de creation", champDate);
+    form->addRow("ID Projet", champProjet);
+    form->addRow("ID Evaluation", champEvaluation);
+
+    layout->addLayout(form, 1);
+
+    // ===== BOUTON FERMER =====
+
+    QHBoxLayout *boutons = new QHBoxLayout();
 
     QPushButton *fermer = new QPushButton("Fermer");
 
-    layout->addWidget(fermer, 0, Qt::AlignRight);
+    fermer->setObjectName("primary");
+
+    boutons->addStretch();
+    boutons->addWidget(fermer);
+
+    layout->addLayout(boutons);
+
+    // ===== FERMER =====
 
     connect(
         fermer,
@@ -1741,7 +1909,6 @@ void MainWindow::voirEquipe(int index)
 
     dialog.exec();
 }
-
 /* =====================================================
    QR
    ===================================================== */
