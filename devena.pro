@@ -5,11 +5,13 @@ SOURCES += \
    main.cpp \
    mainwindow.cpp \
    connection.cpp \
-   projet.cpp
+   projet.cpp \
+   qrcodegen.cpp
 HEADERS += \
     connection.h \
     mainwindow.h \
-    projet.h
+    projet.h \
+    qrcodegen.hpp
     connection.h
 
 FORMS += \

@@ -76,8 +76,8 @@ Projet::Projet(const QString &id, const QString &titre, const QString &descripti
                const QString &thematique, const QString &statut,
                const QDate &dateCreation, const QDate &dateLimite)
     : m_id(id), m_titre(titre), m_description(description),
-    m_thematique(thematique), m_statut(statut),
-    m_dateCreation(dateCreation), m_dateLimite(dateLimite)
+      m_thematique(thematique), m_statut(statut),
+      m_dateCreation(dateCreation), m_dateLimite(dateLimite)
 {
 }
 
