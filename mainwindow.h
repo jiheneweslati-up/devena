@@ -38,7 +38,10 @@ private:
     QImage creerQR(const QString &code) const;
     void afficherQR(int index);
 
-    QImage creerBadge(const Equipe &e) const;
+    QImage creerBadge(const Equipe &e,
+                      const QString &membres,
+                      const QString &hommes,
+                      const QString &femmes) const;
     void afficherBadge(int index);
 
     void afficherEquipes();

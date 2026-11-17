@@ -43,6 +43,8 @@
 #include <QSqlError>
 #include <QDateTime>
 #include <QFormLayout>
+#include <QRegularExpression>
+#include <QSqlQuery>
 /* =====================================================
    STYLE DARK
    ===================================================== */
@@ -1971,86 +1973,249 @@ QImage MainWindow::creerQR(const QString &code) const
 /* =====================================================
    AFFICHER QR
    ===================================================== */
-
 void MainWindow::afficherQR(int index)
 {
     if (index < 0 || index >= m_equipes.size())
         return;
 
-    QString code = "DEVE-EQ-" + QString::number(m_equipes[index].id());
+    const Equipe &equipe = m_equipes[index];
+
+    QString code = "DEVE-EQ-" + QString::number(equipe.id());
     QImage image = creerQR(code);
 
     QDialog dialog(this);
-    dialog.setWindowTitle("QR - " + m_equipes[index].nom());
-  dialog.setFixedSize(700, 500);
+    dialog.setWindowTitle("QR Code - Equipe");
+    dialog.setFixedSize(700, 550);
+
+    dialog.setStyleSheet(
+        "QDialog {"
+        " background-color: #050B14;"
+        " border: 1px solid #18D9EF;"
+        "}"
+        "QLabel {"
+        " color: #F4F7FB;"
+        " background: transparent;"
+        "}"
+        "QPushButton {"
+        " background-color: #0A1726;"
+        " color: #F4F7FB;"
+        " border: 1px solid #203B52;"
+        " border-radius: 8px;"
+        " padding: 11px;"
+        " font-size: 13px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        " background-color: #102A3D;"
+        " border: 1px solid #18D9EF;"
+        "}"
+        );
 
     QVBoxLayout *v = new QVBoxLayout(&dialog);
+    v->setContentsMargins(25, 20, 25, 20);
+    v->setSpacing(12);
 
-    QLabel *title = new QLabel(m_equipes[index].nom());
+    // Nom de l'equipe
+    QLabel *title = new QLabel(equipe.nom());
     title->setAlignment(Qt::AlignCenter);
-    title->setStyleSheet("color:#18D9EF;font-size:20px;font-weight:bold;");
+    title->setStyleSheet(
+        "color: #18D9EF;"
+        "font-size: 23px;"
+        "font-weight: bold;"
+        );
 
+    // Identifiant de l'equipe
+    QLabel *idLabel = new QLabel("ID : " + QString::number(equipe.id()));
+    idLabel->setAlignment(Qt::AlignCenter);
+    idLabel->setStyleSheet(
+        "color: #18D9EF;"
+        "font-size: 14px;"
+        "border: 1px solid #18D9EF;"
+        "border-radius: 12px;"
+        "padding: 5px 15px;"
+        );
+
+    // Image QR
     QLabel *img = new QLabel;
     img->setAlignment(Qt::AlignCenter);
-    img->setPixmap(QPixmap::fromImage(image));
+    img->setFixedSize(230, 230);
+    img->setStyleSheet(
+        "background-color: white;"
+        "border: 2px solid #18D9EF;"
+        "border-radius: 8px;"
+        "padding: 5px;"
+        );
 
+    img->setPixmap(
+        QPixmap::fromImage(image).scaled(
+            210, 210,
+            Qt::KeepAspectRatio,
+            Qt::FastTransformation
+            )
+        );
+
+    // Texte explicatif
+    QLabel *description = new QLabel(
+        "Scannez pour identifier cette equipe"
+        );
+    description->setAlignment(Qt::AlignCenter);
+    description->setStyleSheet(
+        "color: #8FA9C1;"
+        "font-size: 12px;"
+        );
+
+    // Boutons
     QPushButton *save = new QPushButton("Enregistrer PNG");
+    save->setStyleSheet(
+        "QPushButton {"
+        " background-color: #18D9EF;"
+        " color: #050B14;"
+        " border: none;"
+        " border-radius: 8px;"
+        " padding: 11px;"
+        " font-size: 13px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        " background-color: #12BBD0;"
+        "}"
+        );
     QPushButton *close = new QPushButton("Fermer");
 
-    v->addWidget(title);
-    v->addWidget(img);
-    v->addWidget(new QLabel(code));
-    v->addWidget(save);
-    v->addWidget(close);
+    save->setMinimumHeight(42);
+    close->setMinimumHeight(42);
 
-    connect(save, &QPushButton::clicked, [this, image]() {
-        QString file = QFileDialog::getSaveFileName(this, "Enregistrer QR", "qr_equipe.png", "PNG (*.png)");
-        if (!file.isEmpty()) image.save(file);
+    QHBoxLayout *buttons = new QHBoxLayout;
+    buttons->setSpacing(12);
+    buttons->addWidget(save);
+    buttons->addWidget(close);
+
+    v->addWidget(title);
+    v->addWidget(idLabel, 0, Qt::AlignCenter);
+    v->addStretch();
+    v->addWidget(img, 0, Qt::AlignCenter);
+    v->addWidget(description);
+    v->addStretch();
+    v->addLayout(buttons);
+
+    // Enregistrer le QR
+    connect(save, &QPushButton::clicked, [&]() {
+        QString file = QFileDialog::getSaveFileName(
+            &dialog,
+            "Enregistrer QR",
+            "qr_equipe.png",
+            "PNG (*.png)"
+            );
+
+        if (!file.isEmpty())
+            image.save(file, "PNG");
     });
 
-    connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
+
+    connect(close, &QPushButton::clicked,
+            &dialog, &QDialog::accept);
 
     dialog.exec();
 }
 
+
 /* =====================================================
-   BADGE
+   BADGE - DESIGN DEVENA
    ===================================================== */
 
-QImage MainWindow::creerBadge(const Equipe &e) const
+QImage MainWindow::creerBadge(const Equipe &e,
+                              const QString &membres,
+                              const QString &hommes,
+                              const QString &femmes) const
 {
-    QImage image(900, 500, QImage::Format_RGB32);
-    image.fill(QColor("#081522"));
+    QImage image(1200, 700, QImage::Format_RGB32);
+    image.fill(QColor("#050B14"));
 
     QPainter p(&image);
     p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::TextAntialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    p.setPen(QPen(QColor("#18D9EF"), 3));
-    p.drawRoundedRect(10, 10, 880, 480, 20, 20);
+    QColor cyan("#18D9EF");
+    QColor white("#F4F7FB");
+    QColor grey("#A9C1D5");
 
-    p.setPen(QColor("#18D9EF"));
-    p.setFont(QFont("Segoe UI", 24, QFont::Bold));
-    p.drawText(40, 55, "◆ Devena");
+    // Cadre principal
+    p.setPen(QPen(cyan, 4));
+    p.setBrush(QColor("#071522"));
+    p.drawRoundedRect(30, 30, 1140, 640, 35, 35);
 
-    p.setPen(Qt::white);
-    p.setFont(QFont("Segoe UI", 30, QFont::Bold));
-    p.drawText(40, 120, e.nom());
+    // Logo DEVENA
+    p.setPen(cyan);
+    p.setFont(QFont("Segoe UI", 48, QFont::Bold));
+    p.drawText(100, 125, "◆ Devena");
 
-    p.setFont(QFont("Segoe UI", 16));
-    p.drawText(45, 170, "Equipe #" + QString::number(e.id()));
-    p.drawText(45, 220, "Membres : " + QString::number(e.taille()) + " / 6");
-    p.drawText(45, 255, "Hommes : " + QString::number(e.hommes()));
-    p.drawText(45, 290, "Femmes : " + QString::number(e.femmes()));
-    p.drawText(45, 325, "Age moyen : " + QString::number(e.ageMoyen(), 'f', 1));
+    // Nom equipe
+    p.setPen(white);
+    p.setFont(QFont("Segoe UI", 48, QFont::Bold));
+    p.drawText(110, 250, e.nom());
 
-    QImage qr = creerQR("DEVE-EQ-" + QString::number(e.id()));
-    qr = qr.scaled(190, 190, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+    // ID equipe
+    p.setPen(QPen(cyan, 3));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(110, 275, 270, 70, 35, 35);
 
-    p.drawImage(660, 100, qr);
+    p.setPen(cyan);
+    p.setFont(QFont("Segoe UI", 27, QFont::Bold));
+    p.drawText(QRect(110, 275, 270, 70),
+               Qt::AlignCenter,
+               "ID : " + QString::number(e.id()));
+
+    // Separation
+    p.setPen(QPen(cyan, 2));
+    p.drawLine(100, 375, 690, 375);
+    // Informations de l'equipe
+    p.setPen(grey);
+    p.setFont(QFont("Segoe UI", 25));
+
+    p.drawText(125, 445, "Membres : " + membres + " / 6");
+
+    p.drawText(125, 500, "Hommes : " + hommes);
+
+    p.drawText(125, 555, "Femmes : " + femmes);
+
+    p.drawText(125, 610,
+               "Age moyen : " +
+                   QString::number(e.ageMoyen(), 'f', 1));
+    // QR Code identique a la fenetre QR
+    QString code = "DEVE-EQ-" + QString::number(e.id());
+
+    QImage qr = creerQR(code);
+
+    // Fond blanc du QR
+    p.setPen(QPen(cyan, 4));
+    p.setBrush(Qt::white);
+    p.drawRoundedRect(755, 175, 360, 360, 15, 15);
+
+    // Affichage QR
+    qr = qr.scaled(320, 320,
+                   Qt::KeepAspectRatio,
+                   Qt::FastTransformation);
+
+    p.drawImage(775, 195, qr);
+
+    // Slogan DEVENA
+    p.setPen(cyan);
+
+    QFont sloganFont("Segoe UI", 17, QFont::Bold);
+    sloganFont.setItalic(true);
+    p.setFont(sloganFont);
+
+    p.drawText(QRect(100, 630, 1000, 35),
+               Qt::AlignCenter,
+               "Connecter les talents, construire l'avenir");
+
+
     p.end();
 
     return image;
 }
+
 
 /* =====================================================
    AFFICHER BADGE
@@ -2061,34 +2226,133 @@ void MainWindow::afficherBadge(int index)
     if (index < 0 || index >= m_equipes.size())
         return;
 
-    QImage image = creerBadge(m_equipes[index]);
+    const Equipe &equipe = m_equipes[index];
+    int ligne = index;
+
+    QString membres = m_table->item(ligne, 2)->text();
+    QString sexe = m_table->item(ligne, 4)->text();
+
+    int nbHommes = 0;
+    int nbFemmes = 0;
+
+    QRegularExpression regexH("(\\d+)\\s*H",
+                              QRegularExpression::CaseInsensitiveOption);
+
+    QRegularExpression regexF("(\\d+)\\s*F",
+                              QRegularExpression::CaseInsensitiveOption);
+
+    QRegularExpressionMatch mh = regexH.match(sexe);
+    QRegularExpressionMatch mf = regexF.match(sexe);
+
+    if (mh.hasMatch())
+        nbHommes = mh.captured(1).toInt();
+
+    if (mf.hasMatch())
+        nbFemmes = mf.captured(1).toInt();
+
+    QString hommes = QString::number(nbHommes);
+    QString femmes = QString::number(nbFemmes);
+    QImage image = creerBadge(equipe, membres, hommes, femmes);
 
     QDialog dialog(this);
-    dialog.setWindowTitle("Badge - " + m_equipes[index].nom());
-  dialog.setFixedSize(700, 500);
-    QVBoxLayout *v = new QVBoxLayout(&dialog);
+    dialog.setWindowTitle("Badge - " + equipe.nom());
+    dialog.setFixedSize(950, 650);
 
+    dialog.setStyleSheet(
+        "QDialog {"
+        " background-color: #050B14;"
+        " border: 1px solid #18D9EF;"
+        "}"
+        "QLabel {"
+        " color: #F4F7FB;"
+        " background: transparent;"
+        "}"
+        "QPushButton {"
+        " background-color: #0A1726;"
+        " color: #F4F7FB;"
+        " border: 1px solid #203B52;"
+        " border-radius: 8px;"
+        " padding: 12px;"
+        " font-size: 14px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        " background-color: #102A3D;"
+        " border: 1px solid #18D9EF;"
+        "}"
+        );
+
+    QVBoxLayout *v = new QVBoxLayout(&dialog);
+    v->setContentsMargins(20, 20, 20, 20);
+    v->setSpacing(15);
+
+    // Image Badge
     QLabel *img = new QLabel;
     img->setAlignment(Qt::AlignCenter);
-    img->setPixmap(QPixmap::fromImage(image).scaled(
-        640, 356,
-        Qt::KeepAspectRatio,
-        Qt::SmoothTransformation
-        ));
 
-    QPushButton *save = new QPushButton("Enregistrer le badge");
+    img->setPixmap(
+        QPixmap::fromImage(image).scaled(
+            940, 548,
+            Qt::KeepAspectRatio,
+            Qt::SmoothTransformation
+            )
+        );
+
+    // Boutons
+    QPushButton *save = new QPushButton("Enregistrer PNG");
     QPushButton *close = new QPushButton("Fermer");
 
-    v->addWidget(img, 1);
-    v->addWidget(save);
-    v->addWidget(close);
+    save->setMinimumHeight(48);
+    close->setMinimumHeight(48);
 
-    connect(save, &QPushButton::clicked, [this, image]() {
-        QString file = QFileDialog::getSaveFileName(this, "Enregistrer le badge", "badge_equipe.png", "PNG (*.png)");
-        if (!file.isEmpty()) image.save(file);
+    save->setSizePolicy(QSizePolicy::Expanding,
+                        QSizePolicy::Fixed);
+
+    close->setSizePolicy(QSizePolicy::Expanding,
+                         QSizePolicy::Fixed);
+
+    // Bouton bleu DEVENA
+    save->setStyleSheet(
+        "QPushButton {"
+        " background-color: #18D9EF;"
+        " color: #050B14;"
+        " border: none;"
+        " border-radius: 8px;"
+        " font-size: 14px;"
+        " font-weight: bold;"
+        "}"
+        "QPushButton:hover {"
+        " background-color: #12BBD0;"
+        "}"
+        );
+
+    // Layout horizontal pour les boutons
+    QHBoxLayout *hButtons = new QHBoxLayout;
+    hButtons->setSpacing(15);
+
+    hButtons->addWidget(save);
+    hButtons->addWidget(close);
+
+    // Ajouter les widgets
+    v->addWidget(img, 1);
+    v->addLayout(hButtons);
+
+    // Enregistrer Badge PNG
+    connect(save, &QPushButton::clicked, [&]() {
+
+        QString file = QFileDialog::getSaveFileName(
+            &dialog,
+            "Enregistrer le badge",
+            "badge_equipe.png",
+            "PNG (*.png)"
+            );
+
+        if (!file.isEmpty())
+            image.save(file, "PNG");
     });
 
-    connect(close, &QPushButton::clicked, &dialog, &QDialog::accept);
+    connect(close, &QPushButton::clicked,
+            &dialog, &QDialog::accept);
 
     dialog.exec();
 }
@@ -2320,11 +2584,18 @@ QPixmap MainWindow::creerCourbe() const
     QStringList mois = {"Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Août", "Sept"};
 
     // Calcule le nombre total actuel de membres inscrits dans toutes les équipes
+
     int totalMembresActuels = 0;
-    for (const Equipe &e : m_equipes)
+
+    QSqlQuery query;
+
+    if (query.exec(
+            "SELECT NVL(SUM(NB_MEMBRES), 0) FROM EQUIPES")
+        && query.next())
     {
-        totalMembresActuels += e.taille();
+        totalMembresActuels = query.value(0).toInt();
     }
+
 
     QVector<QPointF> points;
     double startX = 65;
@@ -2376,54 +2647,58 @@ QPixmap MainWindow::creerCourbe() const
 
 void MainWindow::afficherStatistiques()
 {
-    int total = 0;
+    int totalEquipes = 0;
+    int totalMembres = 0;
     int h = 0;
     int f = 0;
 
-    for (const Equipe &e : m_equipes)
+    QSqlQuery query;
+
+    if (!query.exec(
+            "SELECT COUNT(*), NVL(SUM(NB_MEMBRES), 0) FROM EQUIPES")
+        || !query.next())
     {
-        total += e.taille();
-        h += e.hommes();
-        f += e.femmes();
+        qDebug() << query.lastError().text();
+        return;
     }
 
-    m_totalEquipes->setText(QString::number(m_equipes.size()));
-    m_totalMembres->setText(QString::number(total));
+    totalEquipes = query.value(0).toInt();
+    totalMembres = query.value(1).toInt();
+
+    QSqlQuery querySexe;
+
+    if (!querySexe.exec("SELECT SEXE FROM EQUIPES"))
+    {
+        qDebug() << querySexe.lastError().text();
+        return;
+    }
+
+    while (querySexe.next())
+    {
+        QString sexe = querySexe.value(0).toString();
+
+        QRegularExpression regexH("(\\d+)\\s*H",
+                                  QRegularExpression::CaseInsensitiveOption);
+
+        QRegularExpression regexF("(\\d+)\\s*F",
+                                  QRegularExpression::CaseInsensitiveOption);
+
+        QRegularExpressionMatch mh = regexH.match(sexe);
+        QRegularExpressionMatch mf = regexF.match(sexe);
+
+        if (mh.hasMatch())
+            h += mh.captured(1).toInt();
+
+        if (mf.hasMatch())
+            f += mf.captured(1).toInt();
+    }
+
+    m_totalEquipes->setText(QString::number(totalEquipes));
+    m_totalMembres->setText(QString::number(totalMembres));
     m_totalHommes->setText(QString::number(h));
     m_totalFemmes->setText(QString::number(f));
 
     m_courbe->setPixmap(creerCourbe());
-}
-
-/* =====================================================
-   FILTRE
-   ===================================================== */
-
-void MainWindow::filtrer()
-{
-    QString search = m_recherche->text().trimmed().toLower();
-    QString filter = m_filtre->currentText();
-
-    for (int i = 0; i < m_equipes.size(); ++i)
-    {
-        const Equipe &e = m_equipes[i];
-        bool visible = search.isEmpty() || e.nom().toLower().contains(search);
-
-        if (filter == "Equipe avec membres")
-        {
-            visible = visible && e.taille() > 0;
-        }
-        else if (filter == "Equipe vide")
-        {
-            visible = visible && e.taille() == 0;
-        }
-        else if (filter == "Equipe complete")
-        {
-            visible = visible && e.pleine();
-        }
-
-        m_table->setRowHidden(i, !visible);
-    }
 }
 
 /* =====================================================
@@ -2658,13 +2933,54 @@ void MainWindow::changerModeClair()
     afficherStatistiques();
 }
 
+// ==========================================
+// FILTRER LES EQUIPES
+// ==========================================
+
+void MainWindow::filtrer()
+{
+    QString recherche = m_recherche->text().trimmed().toLower();
+    QString filtre = m_filtre->currentText();
+
+    for (int i = 0; i < m_table->rowCount(); ++i)
+    {
+        bool visible = true;
+
+        QString nomEquipe = m_table->item(i, 1)
+                                ? m_table->item(i, 1)->text().toLower()
+                                : "";
+
+        int nbMembres = m_table->item(i, 2)
+                            ? m_table->item(i, 2)->text().toInt()
+                            : 0;
+
+        int capacite = m_table->item(i, 3)
+                           ? m_table->item(i, 3)->text().toInt()
+                           : 0;
+
+        // Recherche par nom d'equipe
+        if (!recherche.isEmpty() && !nomEquipe.contains(recherche))
+            visible = false;
+
+        // Filtrage selon le nombre de membres
+        if (filtre == "Equipe avec membres" && nbMembres == 0)
+            visible = false;
+
+        else if (filtre == "Equipe vide" && nbMembres != 0)
+            visible = false;
+
+        else if (filtre == "Equipe complete" && nbMembres < capacite)
+            visible = false;
+
+        m_table->setRowHidden(i, !visible);
+    }
+}
+
 /* =====================================================
    RAFRAICHIR
    ===================================================== */
-
 void MainWindow::rafraichir()
 {
     afficherEquipes();
     afficherStatistiques();
-    filtrer();
 }
