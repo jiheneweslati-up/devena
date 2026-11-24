@@ -6,9 +6,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1600</width>
+    <width>1400</width>
     <height>900</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>1020</width>
+    <height>620</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>Devena - Gestion des projets</string>
@@ -300,6 +306,16 @@ Build tomorrow</string>
                </widget>
               </item>
               <item>
+               <widget class="QPushButton" name="boutonGagnant">
+                <property name="text">
+                 <string>🏆  Évaluation</string>
+                </property>
+                <property name="toolTip">
+                 <string>Classement des projets selon les notes des équipes</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <widget class="QPushButton" name="boutonExporterPdf">
                 <property name="text">
                  <string>Exporter en PDF</string>
@@ -376,146 +392,14 @@ Build tomorrow</string>
              </widget>
             </item>
             <item>
-             <widget class="QFrame" name="cadreGraphique">
-              <property name="role" stdset="0">
-               <string>carte</string>
+             <widget class="QWidget" name="organigramme" native="true">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>214</height>
+               </size>
               </property>
-              <layout class="QVBoxLayout" name="layoutGraphique">
-               <item>
-                <widget class="QWidget" name="graphique" native="true">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>180</height>
-                  </size>
-                 </property>
-                </widget>
-               </item>
-              </layout>
              </widget>
-            </item>
-            <item>
-             <layout class="QHBoxLayout" name="layoutCartesStats">
-              <property name="spacing">
-               <number>14</number>
-              </property>
-              <item>
-               <widget class="QFrame" name="carteProjets">
-                <property name="role" stdset="0">
-                 <string>carte</string>
-                </property>
-                <layout class="QVBoxLayout" name="layoutCarteProjets">
-                 <item>
-                  <widget class="QLabel" name="labelTitreProjets">
-                   <property name="text">
-                    <string>Projets</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>sousTitre</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="labelNbProjets">
-                   <property name="text">
-                    <string>0</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>valeurStat</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-              <item>
-               <widget class="QFrame" name="carteEnCours">
-                <property name="role" stdset="0">
-                 <string>carte</string>
-                </property>
-                <layout class="QVBoxLayout" name="layoutCarteEnCours">
-                 <item>
-                  <widget class="QLabel" name="labelTitreEnCours">
-                   <property name="text">
-                    <string>En cours</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>sousTitre</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="labelNbEnCours">
-                   <property name="text">
-                    <string>0</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>valeurStat</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-              <item>
-               <widget class="QFrame" name="carteTermines">
-                <property name="role" stdset="0">
-                 <string>carte</string>
-                </property>
-                <layout class="QVBoxLayout" name="layoutCarteTermines">
-                 <item>
-                  <widget class="QLabel" name="labelTitreTermines">
-                   <property name="text">
-                    <string>Terminés</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>sousTitre</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="labelNbTermines">
-                   <property name="text">
-                    <string>0</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>valeurStat</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-              <item>
-               <widget class="QFrame" name="carteEnRetard">
-                <property name="role" stdset="0">
-                 <string>carte</string>
-                </property>
-                <layout class="QVBoxLayout" name="layoutCarteEnRetard">
-                 <item>
-                  <widget class="QLabel" name="labelTitreEnRetard">
-                   <property name="text">
-                    <string>En retard</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>sousTitre</string>
-                   </property>
-                  </widget>
-                 </item>
-                 <item>
-                  <widget class="QLabel" name="labelNbEnRetard">
-                   <property name="text">
-                    <string>0</string>
-                   </property>
-                   <property name="role" stdset="0">
-                    <string>valeurStat</string>
-                   </property>
-                  </widget>
-                 </item>
-                </layout>
-               </widget>
-              </item>
-             </layout>
             </item>
            </layout>
           </widget>

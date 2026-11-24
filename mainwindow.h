@@ -14,6 +14,7 @@ class QComboBox;
 class QFrame;
 class QLabel;
 class QPushButton;
+class QStackedWidget;
 class QVariantAnimation;
 class QVBoxLayout;
 
@@ -34,7 +35,7 @@ public:
     ~MainWindow() override;
 
 protected:
-    // Dessine la courbe des statistiques, gere les clics et le survol des notifications
+    // Dessine le donut des statistiques et les confettis, gere les clics et le survol des notifications
     bool eventFilter(QObject *objet, QEvent *evenement) override;
     // Replace le centre de notifications et les toasts quand la fenetre change de taille
     void resizeEvent(QResizeEvent *evenement) override;
@@ -49,7 +50,9 @@ private slots:
 
     // Autres fonctionnalites
     void annulerDerniereAction();
-    void exporterPdf();
+    void exporterPdf();                       // liste des projets affiches (sans les fiches)
+    void exporterFichePdf(const QString &id); // fiche PDF d'un seul projet
+    void afficherProjetGagnant();             // bouton Evaluation : classement par note et gagnant
     void basculerTheme();
 
 private:
@@ -60,6 +63,16 @@ private:
         Projet apres;   // etat apres l'action (Ajout)
     };
 
+    // Note d'un projet : moyenne des notes (table EVALUATION) de ses equipes
+    struct ScoreProjet {
+        QString id;
+        QString titre;
+        QString thematique;
+        double moyenne = 0;
+        double meilleure = 0;
+        int nbEvaluations = 0;
+    };
+
     // Couleurs du theme courant (sombre ou clair)
     struct Couleurs {
         QColor fond, panneau, carte, bordure, texte, discret, accent, accentTexte, badge, danger;
@@ -68,32 +81,42 @@ private:
     // Interface
     void construireMenu();
     void configurerTableau();
+    void ajusterColonnes();                // largeurs des colonnes selon la place disponible
     void remplirTableau(const QList<Projet> &projets);
-    bool ouvrirFormulaire(Projet &p, bool modification);   // fenetre Ajouter / Modifier
+    void trierProjets(QList<Projet> &projets) const;       // selon la colonne choisie
+    void mettreAJourEntetes();                             // fleche ▲ ▼ sur la colonne triee
+    bool ouvrirFormulaire(Projet &p, bool modification, bool lectureSeule = false);   // fenetre Ajouter / Modifier
     QString prochainId() const;
     void empiler(const Action &a);
 
-    // Statistiques
-    void mettreAJourStatistiques();
-    void dessinerGraphique();
+    // Statistiques (organigramme de 4 cartes)
+    void mettreAJourStatistiques(bool forcer = false);
+    void dessinerDonut(QWidget *zone);
+
+    // Evaluation : classement des projets par note
+    QList<ScoreProjet> classementProjets(QString *erreur = nullptr) const;
+    void dessinerConfettis(QWidget *zone);
+
+    // PDF : fiches des projets
+    bool ecrirePdfProjets(const QList<Projet> &projets, const QString &chemin, bool listeSeule);
 
     // Animations
     void animerPage(QWidget *page);                    // fondu quand on ouvre une page
     void animerCompteur(QLabel *label, int valeur);    // les chiffres defilent jusqu'a la valeur
-    void animerGraphique();                            // la courbe se dessine de gauche a droite
     void animerApparition(QWidget *fenetre, bool glisser = true);   // fondu (et glissement) d'une fenetre
     void animerLigne(const QString &id);               // la ligne modifiee s'illumine puis s'eteint
     void animerEntreeLignes();                         // les lignes apparaissent l'une apres l'autre
     void animerSuppression(const QString &id, const std::function<void()> &ensuite);   // balayage rouge
-    void animerCartes();                               // les cartes s'allument l'une apres l'autre
+    void animerBarres();                               // les barres et le donut se remplissent
     void animerBoutonAjouter();                        // halo qui pulse autour de "+ Ajouter"
 
 
-    // ===== QR codes et flyers =====
-    void afficherQRProjet(const QString &id);              // fenetre QR du projet
-    QString contenuQR(const Projet &p) const;              // texte encode dans le QR
-    bool exporterFlyers(const QList<Projet> &projets,      // un flyer A4 par projet (PDF)
-                        const QString &chemin);
+    // ===== Vue Kanban (glisser deposer pour changer le statut) =====
+    void construireKanban();                                       // colonnes + boutons Tableau / Kanban
+    void afficherVue(bool kanban, bool animer = true);             // tableau ou Kanban
+    void remplirKanban();                                          // une carte par projet affiche
+    void changerStatut(const QString &id, const QString &statut);  // UPDATE apres un depot
+    bool gererKanban(QObject *objet, QEvent *evenement);           // souris et glisser deposer
 
     // ===== Systeme de notifications =====
     struct Notification {
@@ -139,11 +162,21 @@ private:
     Ui::MainWindow *ui;
     QList<Projet> m_projetsAffiches;
     QList<Action> m_historique;
-    QList<QPair<QString, int>> m_statsThematique;   // points de la courbe
-    qreal m_progressionCourbe = 1.0;                  // 0 = rien de dessine, 1 = courbe complete
-    QVariantAnimation *m_animationCourbe = nullptr;
-    QList<int> m_chiffres;                            // derniers chiffres des cartes
     bool m_suppressionEnCours = false;
+
+    // Kanban
+    QStackedWidget *m_vues = nullptr;          // tableau ou Kanban
+    QWidget *m_kanban = nullptr;
+    QList<QVBoxLayout *> m_colonnesKanban;     // cartes de chaque colonne (ordre de STATUTS)
+
+    // Tri du tableau
+    int m_triColonne = 0;          // colonne triee (0 = ID Projet)
+    bool m_triCroissant = true;
+
+    // Statistiques
+    QString m_signatureStats;                       // pour ne reconstruire que si les donnees changent
+    QList<QPair<QString, int>> m_partsDonut;        // statut -> nombre de projets
+    qreal m_progressionDonut = 1.0;                 // 0 a 1 : animation du donut
 
     // Notifications
     QList<Notification> m_notifications;   // la plus recente en premier
