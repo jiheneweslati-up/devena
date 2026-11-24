@@ -45,20 +45,19 @@ private:
     void afficherBadge(int index);
 
     void afficherEquipes();
+    void afficherOrganigramme();
 
     QPixmap creerCourbe() const;
-    void afficherStatistiques();
-
+    QWidget *m_organigramme;
     void filtrer();
-
     void afficherNotification(
         const QString &texte,
         bool succes = true
         );
 
     void rafraichir();
-
     void exporterPDF();
+    void exporterEquipePDF(int index); // Exporter une seule équipe avec son QR Code
     void changerModeClair();
 
 private:

@@ -45,6 +45,19 @@
 #include <QFormLayout>
 #include <QRegularExpression>
 #include <QSqlQuery>
+#include <QMap>
+#include <QSet>
+#include <QLayout>
+#include <QLayoutItem>
+#include <algorithm>
+#include <functional>
+#include <QScrollArea>
+#include <QProgressBar>
+#include <QPainter>
+#include <QProgressBar>
+#include <QImage>
+#include <QByteArray>
+#include <QVector>
 /* =====================================================
    STYLE DARK
    ===================================================== */
@@ -544,11 +557,13 @@ void MainWindow::creerInterface()
     m_table->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
     m_table->setColumnWidth(7, 120); // Date de creation
     m_table->setColumnWidth(8, 300); // Actions
-    v->addWidget(m_table, 1);
+    m_table->setMinimumHeight(220);
+    m_table->setMaximumHeight(280);
+    m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    v->addWidget(m_table);
+    /* ================= ORGANIGRAMME ================= */
 
-    /* ================= STATISTIQUES ================= */
-
-    QLabel *statsTitle = new QLabel("Statistiques");
+    QLabel *statsTitle = new QLabel("Organigramme des equipes");
     statsTitle->setObjectName("statsTitleLabel");
     statsTitle->setStyleSheet(
         "font-size:20px;"
@@ -558,47 +573,23 @@ void MainWindow::creerInterface()
 
     v->addWidget(statsTitle);
 
-    m_courbe = new QLabel;
-    m_courbe->setMinimumHeight(165);
-    m_courbe->setAlignment(Qt::AlignCenter);
+    m_organigramme = new QWidget;
+    m_organigramme->setMinimumHeight(250);
+    m_organigramme->setMaximumHeight(280);
 
-    v->addWidget(m_courbe);
+    QVBoxLayout *orgLayout = new QVBoxLayout(m_organigramme);
+    orgLayout->setContentsMargins(5, 5, 5, 5);
 
-    QHBoxLayout *stats = new QHBoxLayout;
+    QScrollArea *orgScroll = new QScrollArea;
+    orgScroll->setWidgetResizable(true);
+    orgScroll->setFrameShape(QFrame::NoFrame);
+    orgScroll->setWidget(m_organigramme);
+    orgScroll->setMinimumHeight(260);
+    orgScroll->setMaximumHeight(280);
+    v->addWidget(orgScroll, 1);
 
-    auto statCard = [](const QString &name, QLabel **value) {
-        QFrame *box = new QFrame;
-        box->setObjectName("statCard");
-
-        QVBoxLayout *l = new QVBoxLayout(box);
-
-        QLabel *n = new QLabel(name);
-        n->setStyleSheet("color:#7D8BA3;");
-
-        *value = new QLabel("0");
-        (*value)->setStyleSheet(
-            "color:#18D9EF;"
-            "font-size:21px;"
-            "font-weight:bold;"
-            );
-
-        l->addWidget(n);
-        l->addWidget(*value);
-
-        return box;
-    };
-
-    stats->addWidget(statCard("Equipes", &m_totalEquipes));
-    stats->addWidget(statCard("Membres", &m_totalMembres));
-    stats->addWidget(statCard("Hommes", &m_totalHommes));
-    stats->addWidget(statCard("Femmes", &m_totalFemmes));
-
-    v->addLayout(stats);
     root->addWidget(body, 1);
 }
-
-
-
 
 /* =====================================================
    IDS
@@ -674,8 +665,7 @@ void MainWindow::afficherNotification(const QString &texte, bool succes)
    AFFECTATION
    ===================================================== */
 
-void MainWindow::affecterAutomatiquement()
-{
+void MainWindow::affecterAutomatiquement(){
     for (Equipe &e : m_equipes)
         e.vider();
 
@@ -1914,50 +1904,62 @@ void MainWindow::voirEquipe(int index)
 /* =====================================================
    QR
    ===================================================== */
-
 QImage MainWindow::creerQR(const QString &code) const
 {
     const int n = 21;
-    const int s = 7;
+    const int scale = 8;
+    const int marge = 4;
 
-    QImage image((n + 8) * s, (n + 8) * s, QImage::Format_RGB32);
-    image.fill(Qt::white);
+    QByteArray contenu = code.toUtf8();
 
-    QPainter p(&image);
-    p.setPen(Qt::NoPen);
-    p.setBrush(Qt::black);
+    // Version 1-L : maximum 17 octets
+    if (contenu.size() > 17)
+        return QImage();
 
-    int total = 0;
-    for (char c : code.toUtf8())
+    QVector<QVector<int>> modules(
+        n, QVector<int>(n, 0)
+        );
+
+    QVector<QVector<bool>> reserved(
+        n, QVector<bool>(n, false)
+        );
+
+    // Fonction pour placer un module
+    auto placer = [&](int x, int y, bool noir)
     {
-        total += static_cast<unsigned char>(c);
-    }
-
-    for (int y = 0; y < n; ++y)
-    {
-        for (int x = 0; x < n; ++x)
+        if (x >= 0 && x < n && y >= 0 && y < n)
         {
-            bool fixed = (x < 7 && y < 7) || (x >= n - 7 && y < 7) || (x < 7 && y >= n - 7);
-            if (fixed) continue;
-
-            int value = x * 31 + y * 17 + total;
-            if (value % 5 == 0 || value % 11 == 0)
-            {
-                p.drawRect((x + 4) * s, (y + 4) * s, s, s);
-            }
+            modules[y][x] = noir ? 1 : 0;
+            reserved[y][x] = true;
         }
-    }
+    };
 
-    auto finder = [&](int ox, int oy) {
-        for (int y = 0; y < 7; ++y)
+    // Finder patterns et leurs marges blanches
+    auto finder = [&](int ox, int oy)
+    {
+        for (int dy = -1; dy <= 7; ++dy)
         {
-            for (int x = 0; x < 7; ++x)
+            for (int dx = -1; dx <= 7; ++dx)
             {
-                bool black = x == 0 || x == 6 || y == 0 || y == 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4);
-                if (black)
+                int x = ox + dx;
+                int y = oy + dy;
+
+                if (x < 0 || x >= n || y < 0 || y >= n)
+                    continue;
+
+                bool noir = false;
+
+                if (dx >= 0 && dx <= 6 &&
+                    dy >= 0 && dy <= 6)
                 {
-                    p.drawRect((ox + x + 4) * s, (oy + y + 4) * s, s, s);
+                    noir =
+                        dx == 0 || dx == 6 ||
+                        dy == 0 || dy == 6 ||
+                        (dx >= 2 && dx <= 4 &&
+                         dy >= 2 && dy <= 4);
                 }
+
+                placer(x, y, noir);
             }
         }
     };
@@ -1966,10 +1968,259 @@ QImage MainWindow::creerQR(const QString &code) const
     finder(n - 7, 0);
     finder(0, n - 7);
 
+    // Timing patterns
+    for (int i = 8; i < n - 8; ++i)
+    {
+        placer(i, 6, i % 2 == 0);
+        placer(6, i, i % 2 == 0);
+    }
+
+    // Encodage Byte Mode
+    QVector<int> bits;
+
+    auto ajouterBits = [&](int valeur, int longueur)
+    {
+        for (int i = longueur - 1; i >= 0; --i)
+            bits.append((valeur >> i) & 1);
+    };
+
+    ajouterBits(4, 4); // Mode Byte
+    ajouterBits(contenu.size(), 8);
+
+    for (unsigned char c : contenu)
+        ajouterBits(c, 8);
+
+    // Terminator
+    ajouterBits(0, qMin(4, 152 - bits.size()));
+
+    // Completer jusqu'au prochain octet
+    while (bits.size() % 8 != 0)
+        bits.append(0);
+
+    // Transformer les bits en octets
+    QVector<int> data;
+
+    for (int i = 0; i < bits.size(); i += 8)
+    {
+        int valeur = 0;
+
+        for (int j = 0; j < 8; ++j)
+            valeur = (valeur << 1) | bits[i + j];
+
+        data.append(valeur);
+    }
+
+    // Remplissage jusqu'a 19 octets
+    int compteur = 0;
+
+    while (data.size() < 19)
+    {
+        data.append(compteur % 2 == 0 ? 0xEC : 0x11);
+        compteur++;
+    }
+
+    // Multiplication dans GF(256)
+    auto multiplier = [](int x, int y)
+    {
+        int resultat = 0;
+
+        for (int i = 0; i < 8; ++i)
+        {
+            if (y & 1)
+                resultat ^= x;
+
+            bool haut = x & 0x80;
+
+            x = (x << 1) & 0xFF;
+
+            if (haut)
+                x ^= 0x1D;
+
+            y >>= 1;
+        }
+
+        return resultat;
+    };
+
+    // Generateur Reed-Solomon de degre 7
+    QVector<int> generateur(7, 0);
+    generateur[6] = 1;
+
+    int racine = 1;
+
+    for (int i = 0; i < 7; ++i)
+    {
+        for (int j = 0; j < 7; ++j)
+        {
+            generateur[j] =
+                multiplier(generateur[j], racine);
+
+            if (j + 1 < 7)
+                generateur[j] ^= generateur[j + 1];
+        }
+
+        racine = multiplier(racine, 2);
+    }
+
+    // Calcul des 7 octets de correction
+    QVector<int> correction(7, 0);
+
+    for (int valeur : data)
+    {
+        int facteur = valeur ^ correction[0];
+
+        for (int j = 0; j < 6; ++j)
+            correction[j] = correction[j + 1];
+
+        correction[6] = 0;
+
+        for (int j = 0; j < 7; ++j)
+            correction[j] ^= multiplier(
+                generateur[j], facteur
+                );
+    }
+
+    // Construire la sequence complete
+    QVector<int> tousOctets = data;
+
+    for (int valeur : correction)
+        tousOctets.append(valeur);
+
+    QVector<int> donneesBits;
+
+    for (int valeur : tousOctets)
+        ajouterBits(valeur, 8);
+
+    // Les bits sont deja dans bits :
+    // reconstruire la sequence data + correction
+    donneesBits.clear();
+
+    for (int valeur : tousOctets)
+    {
+        for (int i = 7; i >= 0; --i)
+            donneesBits.append((valeur >> i) & 1);
+    }
+
+    // Reserving format information
+    for (int i = 0; i <= 5; ++i)
+        reserved[ i ][8] = true;
+
+    reserved[7][8] = true;
+    reserved[8][8] = true;
+    reserved[8][7] = true;
+
+    for (int i = 9; i < 15; ++i)
+        reserved[8][14 - i] = true;
+
+    for (int i = 0; i < 8; ++i)
+        reserved[8][n - 1 - i] = true;
+
+    for (int i = 8; i < 15; ++i)
+        reserved[n - 15 + i][8] = true;
+
+    // Dark module
+    placer(8, 13, true);
+
+    // Placement des donnees
+    int indexBit = 0;
+    bool versHaut = true;
+
+    for (int droite = n - 1; droite >= 1; droite -= 2)
+    {
+        if (droite == 6)
+            droite--;
+
+        for (int v = 0; v < n; ++v)
+        {
+            int y = versHaut ? n - 1 - v : v;
+
+            for (int j = 0; j < 2; ++j)
+            {
+                int x = droite - j;
+
+                if (reserved[y][x])
+                    continue;
+
+                int valeur = 0;
+
+                if (indexBit < donneesBits.size())
+                    valeur = donneesBits[indexBit++];
+
+                // Mask 0
+                if ((x + y) % 2 == 0)
+                    valeur ^= 1;
+
+                modules[y][x] = valeur;
+            }
+        }
+
+        versHaut = !versHaut;
+    }
+
+    // Format information : niveau L, masque 0
+    int format = 8 << 10;
+    int reste = format;
+
+    for (int i = 14; i >= 10; --i)
+    {
+        if ((reste >> i) & 1)
+            reste ^= 0x537 << (i - 10);
+    }
+
+    format = (format | reste) ^ 0x5412;
+
+    // Placer les informations de format
+    for (int i = 0; i <= 5; ++i)
+        modules[i][8] = (format >> i) & 1;
+
+    modules[7][8] = (format >> 6) & 1;
+    modules[8][8] = (format >> 7) & 1;
+    modules[8][7] = (format >> 8) & 1;
+
+    for (int i = 9; i < 15; ++i)
+        modules[8][14 - i] = (format >> i) & 1;
+
+    for (int i = 0; i < 8; ++i)
+        modules[8][n - 1 - i] = (format >> i) & 1;
+
+    for (int i = 8; i < 15; ++i)
+        modules[n - 15 + i][8] = (format >> i) & 1;
+
+    // Image finale
+    int dimension = (n + marge * 2) * scale;
+
+    QImage image(
+        dimension,
+        dimension,
+        QImage::Format_RGB32
+        );
+
+    image.fill(Qt::white);
+
+    QPainter p(&image);
+    p.setPen(Qt::NoPen);
+    p.setBrush(Qt::black);
+
+    for (int y = 0; y < n; ++y)
+    {
+        for (int x = 0; x < n; ++x)
+        {
+            if (modules[y][x])
+            {
+                p.drawRect(
+                    (x + marge) * scale,
+                    (y + marge) * scale,
+                    scale,
+                    scale
+                    );
+            }
+        }
+    }
+
     p.end();
+
     return image;
 }
-
 /* =====================================================
    AFFICHER QR
    ===================================================== */
@@ -2136,9 +2387,10 @@ QImage MainWindow::creerBadge(const Equipe &e,
     p.setRenderHint(QPainter::TextAntialiasing);
     p.setRenderHint(QPainter::SmoothPixmapTransform);
 
-    QColor cyan("#18D9EF");
-    QColor white("#F4F7FB");
-    QColor grey("#A9C1D5");
+    const QColor cyan("#18D9EF");
+    const QColor cyanSoft(24, 217, 239, 35);
+    const QColor white("#F4F7FB");
+    const QColor grey("#A9C1D5");
 
     // Cadre principal
     p.setPen(QPen(cyan, 4));
@@ -2150,73 +2402,112 @@ QImage MainWindow::creerBadge(const Equipe &e,
     p.setFont(QFont("Segoe UI", 48, QFont::Bold));
     p.drawText(100, 125, "◆ Devena");
 
-    // Nom equipe
+    // Nom equipe centré dans la colonne gauche
     p.setPen(white);
-    p.setFont(QFont("Segoe UI", 48, QFont::Bold));
-    p.drawText(110, 250, e.nom());
-
-    // ID equipe
-    p.setPen(QPen(cyan, 3));
-    p.setBrush(Qt::NoBrush);
-    p.drawRoundedRect(110, 275, 270, 70, 35, 35);
-
-    p.setPen(cyan);
-    p.setFont(QFont("Segoe UI", 27, QFont::Bold));
-    p.drawText(QRect(110, 275, 270, 70),
+    QFont nomFont("Segoe UI", 46, QFont::Bold);
+    p.setFont(nomFont);
+    p.drawText(QRect(100, 165, 590, 75),
                Qt::AlignCenter,
-               "ID : " + QString::number(e.id()));
+               e.nom());
 
     // Separation
     p.setPen(QPen(cyan, 2));
-    p.drawLine(100, 375, 690, 375);
-    // Informations de l'equipe
+    p.drawLine(100, 268, 690, 268);
+
+    // Informations de l'equipe (incluant ID : E...)
+    p.setFont(QFont("Segoe UI", 24));
+
+    const int iconX = 122;
+    const int textX = 152;
+    const int startY = 332;
+    const int stepY = 56;
+
+    // 0. ID equipe
+    p.setPen(QPen(cyan, 2.2));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(iconX - 10, startY - 22, 20, 16, 3, 3);
+    p.drawLine(iconX - 6, startY - 17, iconX + 6, startY - 17);
+    p.drawLine(iconX - 6, startY - 12, iconX + 2, startY - 12);
+    p.setPen(cyan);
+    p.drawText(textX, startY, "ID : E" + QString::number(e.id()));
+
+    // 1. Membres
+    const int yMembres = startY + stepY;
+    p.setPen(QPen(cyan, 2.2));
+    p.drawEllipse(QPoint(iconX - 5, yMembres - 14), 5, 5);
+    p.drawArc(iconX - 14, yMembres - 8, 18, 12, 0, 180 * 16);
+    p.drawEllipse(QPoint(iconX + 5, yMembres - 13), 4, 4);
+    p.drawArc(iconX - 2, yMembres - 7, 15, 10, 0, 180 * 16);
     p.setPen(grey);
-    p.setFont(QFont("Segoe UI", 25));
+    p.drawText(textX, yMembres, "Membres : " + membres + " / 6");
 
-    p.drawText(125, 445, "Membres : " + membres + " / 6");
+    // 2. Hommes
+    const int yHommes = startY + stepY * 2;
+    p.setPen(QPen(cyan, 2.2));
+    p.drawEllipse(QPoint(iconX - 6, yHommes - 9), 6, 6);
+    p.drawLine(iconX - 2, yHommes - 13, iconX + 6, yHommes - 21);
+    p.drawLine(iconX + 1, yHommes - 21, iconX + 6, yHommes - 21);
+    p.drawLine(iconX + 6, yHommes - 21, iconX + 6, yHommes - 16);
+    p.setPen(grey);
+    p.drawText(textX, yHommes, "Hommes : " + hommes);
 
-    p.drawText(125, 500, "Hommes : " + hommes);
+    // 3. Femmes
+    const int yFemmes = startY + stepY * 3;
+    p.setPen(QPen(cyan, 2.2));
+    p.drawEllipse(QPoint(iconX, yFemmes - 15), 6, 6);
+    p.drawLine(iconX, yFemmes - 9, iconX, yFemmes + 1);
+    p.drawLine(iconX - 5, yFemmes - 3, iconX + 5, yFemmes - 3);
+    p.setPen(grey);
+    p.drawText(textX, yFemmes, "Femmes : " + femmes);
 
-    p.drawText(125, 555, "Femmes : " + femmes);
-
-    p.drawText(125, 610,
+    // 4. Age moyen
+    const int yAge = startY + stepY * 4;
+    p.setPen(QPen(cyan, 2.2));
+    p.drawRoundedRect(iconX - 11, yAge - 22, 22, 18, 4, 4);
+    p.drawEllipse(QPoint(iconX - 4, yAge - 15), 2.5, 2.5);
+    p.drawArc(iconX - 8, yAge - 12, 8, 6, 0, 180 * 16);
+    p.drawLine(iconX + 2, yAge - 16, iconX + 8, yAge - 16);
+    p.drawLine(iconX + 2, yAge - 12, iconX + 8, yAge - 12);
+    p.drawLine(iconX + 2, yAge - 8, iconX + 7, yAge - 8);
+    p.setPen(grey);
+    p.drawText(textX, yAge,
                "Age moyen : " +
                    QString::number(e.ageMoyen(), 'f', 1));
+
     // QR Code identique a la fenetre QR
     QString code = "DEVE-EQ-" + QString::number(e.id());
-
     QImage qr = creerQR(code);
 
-    // Fond blanc du QR
+    if (qr.isNull()) {
+        p.end();
+        return image;
+    }
+
+    p.setPen(QPen(cyanSoft, 8));
+    p.setBrush(Qt::NoBrush);
+    p.drawRoundedRect(751, 171, 368, 368, 18, 18);
+
     p.setPen(QPen(cyan, 4));
     p.setBrush(Qt::white);
     p.drawRoundedRect(755, 175, 360, 360, 15, 15);
 
-    // Affichage QR
     qr = qr.scaled(320, 320,
                    Qt::KeepAspectRatio,
                    Qt::FastTransformation);
-
     p.drawImage(775, 195, qr);
 
     // Slogan DEVENA
     p.setPen(cyan);
-
     QFont sloganFont("Segoe UI", 17, QFont::Bold);
     sloganFont.setItalic(true);
     p.setFont(sloganFont);
-
-    p.drawText(QRect(100, 630, 1000, 35),
+    p.drawText(QRect(100, 624, 1000, 35),
                Qt::AlignCenter,
                "Connecter les talents, construire l'avenir");
 
-
     p.end();
-
     return image;
 }
-
-
 /* =====================================================
    AFFICHER BADGE
    ===================================================== */
@@ -2482,7 +2773,11 @@ void MainWindow::afficherEquipes()
             m_table->setItem(
                 i, c,
                 new QTableWidgetItem(valeurs[c])
+
                 );
+            // Masquer les barres de defilement
+            m_table->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+            m_table->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
         }
 
         // ================= ACTIONS =================
@@ -2498,30 +2793,35 @@ void MainWindow::afficherEquipes()
         QPushButton *trash = new QPushButton("🗑");
         QPushButton *qr = new QPushButton("▣");
         QPushButton *badge = new QPushButton("★");
+        QPushButton *pdf = new QPushButton("📄"); // Nouveau bouton
 
         eye->setObjectName("iconButton");
         edit->setObjectName("iconButton");
         trash->setObjectName("iconButton");
         qr->setObjectName("iconButton");
         badge->setObjectName("iconButton");
+        pdf->setObjectName("iconButton");
 
         eye->setFixedSize(34, 30);
         edit->setFixedSize(34, 30);
         trash->setFixedSize(34, 30);
         qr->setFixedSize(34, 30);
         badge->setFixedSize(34, 30);
+        pdf->setFixedSize(34, 30);
 
         eye->setToolTip("Voir les membres");
         edit->setToolTip("Modifier l'equipe");
         trash->setToolTip("Supprimer l'equipe");
         qr->setToolTip("Afficher le QR");
         badge->setToolTip("Afficher le badge");
+        pdf->setToolTip("Exporter la fiche PDF de l'equipe");
 
         a->addWidget(eye);
         a->addWidget(edit);
         a->addWidget(trash);
         a->addWidget(qr);
         a->addWidget(badge);
+        a->addWidget(pdf); // Nouveau bouton
 
         m_table->setCellWidget(i, 8, actions);
         m_table->setRowHeight(i, 46);
@@ -2540,16 +2840,15 @@ void MainWindow::afficherEquipes()
 
         connect(badge, &QPushButton::clicked,
                 [this, i]() { afficherBadge(i); });
-    }
+
+        connect(pdf, &QPushButton::clicked,
+                [this, i]() { exporterEquipePDF(i); });
+
+    } // Fin du for
 
     delete model;
-}
 
-
-/* =====================================================
-   COURBE
-   ===================================================== */
-
+} // Fin de afficherEquipes()
 /* =====================================================
    COURBE (Corrigée : à 0.0 s'il n'y a pas de membres)
    ===================================================== */
@@ -2641,71 +2940,629 @@ QPixmap MainWindow::creerCourbe() const
     p.end();
     return pix;
 }
+
+class DonutStatistique : public QWidget
+{
+public:
+    DonutStatistique(int hommes, int femmes, QWidget *parent = nullptr)
+        : QWidget(parent), m_hommes(hommes), m_femmes(femmes)
+    {
+        setFixedSize(105, 105);
+    }
+
+protected:
+    void paintEvent(QPaintEvent *) override
+    {
+        QPainter p(this);
+        p.setRenderHint(QPainter::Antialiasing);
+
+        QRectF cercle(13, 13, 79, 79);
+
+        int total = m_hommes + m_femmes;
+
+        QPen pen;
+        pen.setWidth(12);
+        pen.setCapStyle(Qt::FlatCap);
+
+        pen.setColor(QColor("#20384D"));
+        p.setPen(pen);
+        p.drawArc(cercle, 0, 360 * 16);
+
+        if (total > 0)
+        {
+            int angleHommes = qRound(
+                360.0 * m_hommes / total);
+
+            pen.setColor(QColor("#18D9EF"));
+            p.setPen(pen);
+            p.drawArc(
+                cercle,
+                90 * 16,
+                -angleHommes * 16
+                );
+
+            pen.setColor(QColor("#A879F5"));
+            p.setPen(pen);
+            p.drawArc(
+                cercle,
+                (90 - angleHommes) * 16,
+                -(360 - angleHommes) * 16
+                );
+        }
+
+        p.setPen(Qt::white);
+        p.setFont(QFont("Segoe UI", 13, QFont::Bold));
+
+        p.drawText(
+            rect(),
+            Qt::AlignCenter,
+            QString::number(total)
+            );
+    }
+
+private:
+    int m_hommes;
+    int m_femmes;
+};
+
+
+
 /* =====================================================
-   STATISTIQUES
+   STATISTIQUES - ORGANIGRAMME PROFESSIONNEL
    ===================================================== */
 
-void MainWindow::afficherStatistiques()
+
+void MainWindow::afficherOrganigramme()
 {
+    if (!m_organigramme)
+        return;
+   bool modeClair = m_modeClair;
+
+    QString couleurCarte = modeClair ? "#FFFFFF" : "#0B1929";
+    QString couleurTexte = modeClair ? "#172B40" : "#EAF2FA";
+    QString couleurBordure = modeClair ? "#D5DCE5" : "#24445B";
+    QString couleurLigne = modeClair ? "#D5DCE5" : "#24445B";
+    QString couleurBarreFond = modeClair ? "#E3EAF1" : "#20384D";
+
     int totalEquipes = 0;
     int totalMembres = 0;
-    int h = 0;
-    int f = 0;
+    int hommes = 0;
+    int femmes = 0;
+
+    QMap<QString, int> ages;
+    ages["18 - 25 ans"] = 0;
+    ages["26 - 30 ans"] = 0;
+    ages["31 - 35 ans"] = 0;
+    ages["36 ans et plus"] = 0;
+    ages["Non precise"] = 0;
+
+    // Competences normalisees pour eviter les doublons
+    QMap<QString, int> competences;
+    QMap<QString, QString> nomsCompetences;
 
     QSqlQuery query;
 
     if (!query.exec(
-            "SELECT COUNT(*), NVL(SUM(NB_MEMBRES), 0) FROM EQUIPES")
-        || !query.next())
+            "SELECT SEXE, AGE, COMPETENCES, NB_MEMBRES "
+            "FROM EQUIPES"))
     {
         qDebug() << query.lastError().text();
         return;
     }
 
-    totalEquipes = query.value(0).toInt();
-    totalMembres = query.value(1).toInt();
+    QRegularExpression regexH(
+        "(\\d+)\\s*H",
+        QRegularExpression::CaseInsensitiveOption);
 
-    QSqlQuery querySexe;
+    QRegularExpression regexF(
+        "(\\d+)\\s*F",
+        QRegularExpression::CaseInsensitiveOption);
 
-    if (!querySexe.exec("SELECT SEXE FROM EQUIPES"))
+    while (query.next())
     {
-        qDebug() << querySexe.lastError().text();
-        return;
-    }
+        totalEquipes++;
+        totalMembres += query.value(3).toInt();
 
-    while (querySexe.next())
-    {
-        QString sexe = querySexe.value(0).toString();
+        // Calcul des hommes et des femmes
+        QString sexe = query.value(0).toString();
 
-        QRegularExpression regexH("(\\d+)\\s*H",
-                                  QRegularExpression::CaseInsensitiveOption);
-
-        QRegularExpression regexF("(\\d+)\\s*F",
-                                  QRegularExpression::CaseInsensitiveOption);
-
-        QRegularExpressionMatch mh = regexH.match(sexe);
-        QRegularExpressionMatch mf = regexF.match(sexe);
+        auto mh = regexH.match(sexe);
+        auto mf = regexF.match(sexe);
 
         if (mh.hasMatch())
-            h += mh.captured(1).toInt();
+            hommes += mh.captured(1).toInt();
 
         if (mf.hasMatch())
-            f += mf.captured(1).toInt();
+            femmes += mf.captured(1).toInt();
+
+        // Repartition par age
+        int age = query.value(1).toInt();
+
+        if (age >= 18 && age <= 25)
+            ages["18 - 25 ans"]++;
+        else if (age >= 26 && age <= 30)
+            ages["26 - 30 ans"]++;
+        else if (age >= 31 && age <= 35)
+            ages["31 - 35 ans"]++;
+        else if (age >= 36)
+            ages["36 ans et plus"]++;
+        else
+            ages["Non precise"]++;
+
+        // Recuperation des competences
+        QString texte = query.value(2).toString();
+
+        QStringList liste = texte.split(
+            QRegularExpression("[,;]"),
+            Qt::SkipEmptyParts);
+
+        QSet<QString> dejaCompte;
+
+        for (QString competence : liste)
+        {
+            competence = competence.trimmed();
+
+            QString cle = competence.toLower();
+
+            if (!cle.isEmpty() &&
+                cle != "-" &&
+                !dejaCompte.contains(cle))
+            {
+                competences[cle]++;
+
+                if (!nomsCompetences.contains(cle))
+                    nomsCompetences[cle] = competence;
+
+                dejaCompte.insert(cle);
+            }
+        }
     }
 
-    m_totalEquipes->setText(QString::number(totalEquipes));
-    m_totalMembres->setText(QString::number(totalMembres));
-    m_totalHommes->setText(QString::number(h));
-    m_totalFemmes->setText(QString::number(f));
+    // Nettoyage de l'ancien organigramme
+    std::function<void(QLayout*)> viderLayout =
+        [&](QLayout *layout)
+    {
+        if (!layout)
+            return;
 
-    m_courbe->setPixmap(creerCourbe());
+        while (QLayoutItem *item = layout->takeAt(0))
+        {
+            if (item->widget())
+                delete item->widget();
+
+            if (item->layout())
+                viderLayout(item->layout());
+
+            delete item;
+        }
+    };
+
+    QLayout *ancienLayout = m_organigramme->layout();
+
+    if (ancienLayout)
+    {
+        viderLayout(ancienLayout);
+        delete ancienLayout;
+    }
+
+    // Style general des cartes
+    QString styleCarte =
+        "QFrame {"
+        "background-color:" + couleurCarte + ";"
+                         "border:1px solid " + couleurBordure + ";"
+                           "border-radius:9px;"
+                           "}";
+    QVBoxLayout *principal =
+        new QVBoxLayout(m_organigramme);
+
+    principal->setContentsMargins(5, 4, 5, 4);
+    principal->setSpacing(5);
+
+    // Entete de l'organigramme
+    QHBoxLayout *entete = new QHBoxLayout;
+    principal->addLayout(entete);
+
+    // Fonction de creation des cartes
+    auto creerCarte =
+        [&](const QString &nom) -> QPair<QFrame*, QVBoxLayout*>
+    {
+        QFrame *carte = new QFrame;
+        carte->setStyleSheet(styleCarte);
+        carte->setMinimumWidth(0);
+       carte->setMinimumHeight(230);
+
+        QVBoxLayout *l = new QVBoxLayout(carte);
+       l->setContentsMargins(11, 9, 11, 9);
+       l->setSpacing(8);
+
+       // Titre de la carte
+       QLabel *titreCarte = new QLabel(nom);
+
+       titreCarte->setFixedHeight(22);
+       titreCarte->setAlignment(
+           Qt::AlignLeft | Qt::AlignVCenter
+           );
+
+       titreCarte->setStyleSheet(
+           QString(
+               "color:%1;"
+               "font-family:Segoe UI;"
+               "font-size:13px;"
+               "font-weight:%2;"
+               "background:transparent;"
+               "border:none;"
+               )
+               .arg(modeClair ? "#172B40" : "#18D9EF")
+               .arg(modeClair ? "normal" : "bold")
+           );
+
+       l->addWidget(titreCarte);
+
+       // Ligne horizontale sous le titre
+       QFrame *ligne = new QFrame;
+
+       ligne->setFixedHeight(1);
+       ligne->setSizePolicy(
+           QSizePolicy::Expanding,
+           QSizePolicy::Fixed
+           );
+
+       ligne->setStyleSheet(
+           "background-color:#24445B;"
+           "border:none;"
+           );
+
+       l->addWidget(ligne);
+
+        return qMakePair(carte, l);
+    };
+
+    // Fonction de creation des barres
+    auto ajouterBarre =
+        [&](QVBoxLayout *layout,
+            const QString &nom,
+            int valeur,
+            int maximum)
+    {
+            QWidget *ligne = new QWidget;
+
+            ligne->setAttribute(Qt::WA_StyledBackground, true);
+
+            ligne->setMinimumHeight(28);
+            ligne->setMaximumHeight(34);
+
+            ligne->setSizePolicy(
+                QSizePolicy::Expanding,
+                QSizePolicy::Fixed
+                );
+
+            ligne->setStyleSheet(
+                "background:transparent;"
+                "border:none;"
+                );
+        QHBoxLayout *h = new QHBoxLayout(ligne);
+        h->setContentsMargins(0, 2, 0, 2);
+        h->setSpacing(5);
+
+        QLabel *label = new QLabel(nom);
+        label->setMinimumWidth(85);
+        label->setMaximumWidth(115);
+
+        label->setStyleSheet(
+            QString(
+                "color:%1;"
+                "font-size:10px;"
+                "font-weight:500;"
+                "background:transparent;"
+                "border:none;"
+                ).arg(couleurTexte)
+            );
+        label->setWordWrap(true);
+
+        QProgressBar *barre = new QProgressBar;
+        barre->setRange(0, qMax(1, maximum));
+        barre->setValue(valeur);
+        barre->setTextVisible(false);
+        barre->setFixedHeight(9);
+
+        barre->setStyleSheet(
+            "QProgressBar {"
+           "background:" + couleurBarreFond + ";"
+            "border:none;"
+            "border-radius:4px;"
+            "}"
+            "QProgressBar::chunk {"
+            "background:#18D9EF;"
+            "border-radius:4px;"
+            "}"
+            );
+
+        QLabel *nombre = new QLabel(
+            QString::number(valeur));
+
+        nombre->setFixedWidth(20);
+        nombre->setAlignment(Qt::AlignRight);
+
+        nombre->setStyleSheet(
+            "color:#18D9EF;"
+            "font-size:12px;"
+            "font-weight:bold;"
+            "background:transparent;"
+            "border:none;"
+            );
+
+        h->addWidget(label);
+        h->addWidget(barre, 1);
+        h->addWidget(nombre);
+
+        layout->addWidget(ligne);
+    };
+
+    // =================================
+    // CARTE 1 : MEMBRES
+    // =================================
+
+    auto membres = creerCarte("MEMBRES");
+
+    QLabel *grandTotal = new QLabel(
+        QString::number(totalMembres));
+
+    grandTotal->setAlignment(Qt::AlignCenter);
+
+    grandTotal->setStyleSheet(
+        "color:#18D9EF;"
+        "font-size:29px;"
+        "font-weight:bold;"
+        "background:transparent;"
+        "border:none;"
+        );
+
+    // Centrer les statistiques des membres
+    membres.second->addStretch(1);
+
+    membres.second->addWidget(
+        grandTotal,
+        0,
+        Qt::AlignCenter
+        );
+
+    membres.second->addSpacing(12);
+
+    ajouterBarre(
+        membres.second,
+        "Hommes",
+        hommes,
+        qMax(1, hommes + femmes)
+        );
+
+    ajouterBarre(
+        membres.second,
+        "Femmes",
+        femmes,
+        qMax(1, hommes + femmes)
+        );
+
+    membres.second->addStretch(1);
+
+    // =================================
+    // CARTE 2 : REPARTITION PAR AGE
+    // =================================
+
+    auto ageCarte = creerCarte("REPARTITION PAR AGE");
+
+    QStringList ordreAges = {
+        "18 - 25 ans",
+        "26 - 30 ans",
+        "31 - 35 ans",
+        "36 ans et plus",
+        "Non precise"
+    };
+
+    int maxAge = 1;
+
+    for (const QString &nom : ordreAges)
+        maxAge = qMax(maxAge, ages.value(nom));
+
+    for (const QString &nom : ordreAges)
+    {
+        ajouterBarre(
+            ageCarte.second,
+            nom,
+            ages.value(nom),
+            maxAge
+            );
+    }
+
+    // =================================
+    // CARTE 3 : COMPETENCES
+    // =================================
+
+    QList<QPair<QString, int>> classement;
+
+    for (auto it = competences.cbegin();
+         it != competences.cend(); ++it)
+    {
+        classement.append(
+            qMakePair(it.key(), it.value()));
+    }
+
+    std::sort(
+        classement.begin(),
+        classement.end(),
+        [](const QPair<QString, int> &a,
+           const QPair<QString, int> &b)
+        {
+            return a.second > b.second;
+        });
+
+    auto competenceCarte =
+        creerCarte("COMPETENCES PRINCIPALES");
+
+    int maxCompetence = 1;
+
+    if (!classement.isEmpty())
+        maxCompetence = classement.first().second;
+
+    // Zone de defilement reservee aux competences
+    QScrollArea *scrollCompetences = new QScrollArea;
+
+    scrollCompetences->setWidgetResizable(true);
+    scrollCompetences->setFrameShape(QFrame::NoFrame);
+    scrollCompetences->setHorizontalScrollBarPolicy(
+        Qt::ScrollBarAlwaysOff);
+    scrollCompetences->setVerticalScrollBarPolicy(
+        Qt::ScrollBarAsNeeded);
+
+    scrollCompetences->setStyleSheet(
+        "QScrollArea {"
+        "background:transparent;"
+        "border:none;"
+        "}"
+        "QScrollArea QWidget {"
+        "background:transparent;"
+        "}"
+        "QScrollBar:vertical {"
+        "background:#14283A;"
+        "width:5px;"
+        "margin:2px 0px 2px 0px;"
+        "border:none;"
+        "border-radius:2px;"
+        "}"
+        "QScrollBar::handle:vertical {"
+        "background:#18D9EF;"
+        "min-height:20px;"
+        "border-radius:2px;"
+        "}"
+        "QScrollBar::add-line:vertical,"
+        "QScrollBar::sub-line:vertical {"
+        "height:0px;"
+        "}"
+        "QScrollBar::add-page:vertical,"
+        "QScrollBar::sub-page:vertical {"
+        "background:transparent;"
+        "}"
+        );
+
+    // Contenu interieur du scroll
+    QWidget *contenuCompetences = new QWidget;
+
+    QVBoxLayout *layoutCompetences =
+        new QVBoxLayout(contenuCompetences);
+
+    layoutCompetences->setContentsMargins(2, 3, 5, 3);
+    layoutCompetences->setSpacing(7);
+
+    // Afficher toutes les competences
+    for (int i = 0; i < classement.size(); ++i)
+    {
+        QString nomCompetence =
+            nomsCompetences.value(
+                classement[i].first,
+                classement[i].first);
+
+        ajouterBarre(
+            layoutCompetences,
+            nomCompetence,
+            classement[i].second,
+            maxCompetence
+            );
+    }
+
+    if (classement.isEmpty())
+    {
+        QLabel *vide = new QLabel(
+            "Aucune competence disponible");
+
+        vide->setStyleSheet(
+            "color:#8DA5BA;"
+            "background:transparent;"
+            "border:none;"
+            "font-size:10px;"
+            );
+
+        layoutCompetences->addWidget(vide);
+    }
+
+    layoutCompetences->addStretch();
+
+    scrollCompetences->setWidget(contenuCompetences);
+
+    competenceCarte.second->addWidget(
+        scrollCompetences, 1);
+
+    // =================================
+    // CARTE 4 : REPARTITION PAR SEXE
+    // =================================
+
+    auto sexeCarte = creerCarte("REPARTITION PAR SEXE");
+
+    QHBoxLayout *sexeLayout = new QHBoxLayout;
+    sexeLayout->setSpacing(5);
+
+    DonutStatistique *donut =
+        new DonutStatistique(hommes, femmes);
+    donut->setAttribute(Qt::WA_TranslucentBackground);
+    donut->setAutoFillBackground(false);
+
+    donut->setStyleSheet(
+        "background:transparent;"
+        "border:none;"
+        );
+
+    sexeLayout->addWidget(donut, 0, Qt::AlignCenter);
+
+    QVBoxLayout *legende = new QVBoxLayout;
+    legende->setSpacing(8);
+
+    QLabel *hommesLabel = new QLabel(
+        QString("● Hommes : %1").arg(hommes));
+
+    hommesLabel->setStyleSheet(
+        "color:#18D9EF;"
+        "font-size:10px;"
+        "background:transparent;"
+        "border:none;"
+        );
+
+    QLabel *femmesLabel = new QLabel(
+        QString("● Femmes : %1").arg(femmes));
+
+    femmesLabel->setStyleSheet(
+        "color:#A879F5;"
+        "font-size:10px;"
+        "background:transparent;"
+        "border:none;"
+        );
+
+    legende->addWidget(hommesLabel);
+    legende->addWidget(femmesLabel);
+    legende->addStretch();
+
+    sexeLayout->addLayout(legende);
+
+    sexeCarte.second->addLayout(sexeLayout);
+
+    // =================================
+    // ALIGNEMENT DES QUATRE CARTES
+    // =================================
+
+    QHBoxLayout *cartes = new QHBoxLayout;
+    cartes->setSpacing(8);
+
+    cartes->addWidget(membres.first, 1);
+    cartes->addWidget(ageCarte.first, 1);
+    cartes->addWidget(competenceCarte.first, 1.5);
+    cartes->addWidget(sexeCarte.first, 1);
+
+    principal->addLayout(cartes);
 }
 
-/* =====================================================
-   EXPORT PDF
+
+    /* =====================================================
+   EXPORT PDF : TABLEAU DES EQUIPES - DESIGN DEVENA
    ===================================================== */
 
-void MainWindow::exporterPDF()
+    void MainWindow::exporterPDF()
 {
     QString file = QFileDialog::getSaveFileName(
         this,
@@ -2726,121 +3583,576 @@ void MainWindow::exporterPDF()
 
     if (!painter.isActive())
     {
-        QMessageBox::warning(this, "Erreur", "Impossible de creer le PDF.");
+        QMessageBox::warning(
+            this, "Erreur",
+            "Impossible de creer le PDF."
+            );
         return;
     }
 
-    QRect page = painter.viewport();
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
 
-    int left = 50;
-    int top = 50;
+    const QColor navy("#071421");
+    const QColor navyCard("#102538");
+    const QColor turquoise("#18D9EF");
+    const QColor white("#FFFFFF");
+    const QColor grey("#8EA0B7");
+    const QColor lineColor("#29445A");
 
-    painter.setPen(QColor("#087F91"));
-    painter.setFont(QFont("Segoe UI", 24, QFont::Bold));
-    painter.drawText(left, top + 25, "◆ Devena");
+    const int W = painter.viewport().width();
+    const int H = painter.viewport().height();
 
-    painter.setPen(Qt::black);
-    painter.setFont(QFont("Segoe UI", 18, QFont::Bold));
-    painter.drawText(left, top + 65, "Liste des equipes");
+    const int margin = 35;
+    const int availableWidth = W - 2 * margin;
 
-    painter.setFont(QFont("Segoe UI", 10));
-    painter.drawText(left, top + 90, "Gestion des equipes - Hackathon");
+    const int headerHeight = 45;
+    const int rowHeight = 38;
 
-    int y = top + 125;
+    // Recuperer les colonnes sauf Actions
+    QList<int> columns;
 
-    int colID = left;
-    int colEquipe = left + 65;
-    int colMembres = left + 300;
-    int colHF = left + 405;
-    int colAge = left + 500;
-    int colStatut = left + 600;
-
-    painter.setBrush(QColor("#EAF1F7"));
-    painter.setPen(QColor("#087F91"));
-    painter.drawRect(left, y, page.width() - 100, 35);
-
-    painter.setFont(QFont("Segoe UI", 10, QFont::Bold));
-    painter.drawText(colID + 8, y + 23, "ID");
-    painter.drawText(colEquipe + 8, y + 23, "Equipe");
-    painter.drawText(colMembres + 8, y + 23, "Membres");
-    painter.drawText(colHF + 8, y + 23, "H / F");
-    painter.drawText(colAge + 8, y + 23, "Age moyen");
-    painter.drawText(colStatut + 8, y + 23, "Statut");
-
-    y += 35;
-
-    painter.setFont(QFont("Segoe UI", 10));
-    painter.setPen(Qt::black);
-
-    for (const Equipe &e : m_equipes)
+    for (int c = 0; c < m_table->columnCount(); c++)
     {
-        if (y > page.height() - 100)
+        QString header = m_table->horizontalHeaderItem(c)
+        ? m_table->horizontalHeaderItem(c)->text()
+        : "";
+
+        if (header.compare("Actions", Qt::CaseInsensitive) != 0)
+            columns.append(c);
+    }
+
+    if (columns.isEmpty())
+    {
+        painter.end();
+        return;
+    }
+
+    // Calcul des largeurs
+    int totalOriginalWidth = 0;
+
+    for (int c : columns)
+        totalOriginalWidth += m_table->columnWidth(c);
+
+    if (totalOriginalWidth <= 0)
+    {
+        painter.end();
+        return;
+    }
+
+    QVector<int> widths;
+
+    int usedWidth = 0;
+
+    for (int i = 0; i < columns.size(); i++)
+    {
+        int width;
+
+        if (i == columns.size() - 1)
         {
+            width = availableWidth - usedWidth;
+        }
+        else
+        {
+            width = int(
+                double(m_table->columnWidth(columns[i]))
+                * availableWidth / totalOriginalWidth
+                );
+        }
+
+        widths.append(width);
+        usedWidth += width;
+    }
+
+    // Fonction d'affichage de l'en-tete
+    auto dessinerHeader = [&]()
+    {
+        painter.fillRect(0, 0, W, H, navy);
+
+        // Logo texte
+        painter.setPen(turquoise);
+        painter.setFont(QFont("Segoe UI", 25, QFont::Bold));
+
+        painter.drawText(
+            QRect(margin, 25, availableWidth, 42),
+            Qt::AlignLeft | Qt::AlignVCenter,
+            "DEVENA"
+            );
+
+        painter.setPen(grey);
+        painter.setFont(QFont("Segoe UI", 9));
+
+        painter.drawText(
+            QRect(margin, 68, availableWidth, 22),
+            Qt::AlignLeft,
+            "SMART HACKATHON MANAGEMENT"
+            );
+
+        painter.setPen(turquoise);
+        painter.setFont(QFont("Segoe UI", 15, QFont::Bold));
+
+        painter.drawText(
+            QRect(margin, 105, availableWidth, 30),
+            Qt::AlignCenter,
+            "LISTE DES EQUIPES"
+            );
+
+        painter.setPen(QPen(turquoise, 2));
+        painter.drawLine(
+            margin, 145,
+            W - margin, 145
+            );
+
+        painter.setPen(grey);
+        painter.setFont(QFont("Segoe UI", 9));
+
+        painter.drawText(
+            QRect(margin, 155, availableWidth, 22),
+            Qt::AlignLeft,
+            "Nombre total d'equipes : "
+                + QString::number(m_table->rowCount())
+            );
+
+        // En-tete du tableau
+        int y = 190;
+        int x = margin;
+
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(navyCard);
+
+        painter.drawRoundedRect(
+            QRect(margin, y, availableWidth, headerHeight),
+            6, 6
+            );
+
+        painter.setFont(QFont("Segoe UI", 9, QFont::Bold));
+        painter.setPen(turquoise);
+
+        for (int i = 0; i < columns.size(); i++)
+        {
+            int c = columns[i];
+
+            QString header = m_table->horizontalHeaderItem(c)
+                                 ? m_table->horizontalHeaderItem(c)->text()
+                                 : "";
+
+            painter.drawText(
+                QRect(x + 5, y, widths[i] - 10, headerHeight),
+                Qt::AlignCenter,
+                header
+                );
+
+            x += widths[i];
+        }
+
+        return y + headerHeight;
+    };
+
+    // Premiere page
+    int y = dessinerHeader();
+
+    // Lignes du tableau
+    for (int r = 0; r < m_table->rowCount(); r++)
+    {
+        // Nouvelle page si necessaire
+        if (y + rowHeight > H - 65)
+        {
+            // Footer
+            painter.setPen(lineColor);
+            painter.drawLine(
+                margin, H - 48,
+                W - margin, H - 48
+                );
+
+            painter.setPen(turquoise);
+            painter.setFont(QFont("Segoe UI", 9, QFont::Bold));
+
+            painter.drawText(
+                QRect(margin, H - 40, availableWidth, 20),
+                Qt::AlignCenter,
+                "DEVENA - HACK TODAY / BUILD TOMORROW"
+                );
+
             pdf.newPage();
-            y = 70;
+            y = dessinerHeader();
         }
 
-        painter.setPen(QColor("#D5DEE8"));
-        painter.drawLine(left, y + 35, page.width() - 50, y + 35);
+        int x = margin;
 
-        painter.setPen(Qt::black);
-        painter.drawText(colID + 8, y + 22, "E" + QString::number(e.id()));
-        painter.drawText(colEquipe + 8, y + 22, e.nom());
-        painter.drawText(colMembres + 8, y + 22, QString::number(e.taille()) + " / 6");
-        painter.drawText(colHF + 8, y + 22, QString::number(e.hommes()) + " / " + QString::number(e.femmes()));
-        painter.drawText(colAge + 8, y + 22, QString::number(e.ageMoyen(), 'f', 1));
-        painter.drawText(colStatut + 8, y + 22, e.statut());
+        // Fond alterne
+        QColor rowColor = (r % 2 == 0)
+                              ? QColor("#102538")
+                              : QColor("#0B1C2B");
 
-        y += 36;
+        painter.setPen(Qt::NoPen);
+        painter.setBrush(rowColor);
 
-        for (const Participant &p : e.membres())
+        painter.drawRect(
+            margin, y,
+            availableWidth, rowHeight
+            );
+
+        // Donnees
+        painter.setFont(QFont("Segoe UI", 8));
+        painter.setPen(white);
+
+        for (int i = 0; i < columns.size(); i++)
         {
-            if (y > page.height() - 100)
-            {
-                pdf.newPage();
-                y = 70;
-            }
+            int c = columns[i];
 
-            painter.setPen(QColor("#526579"));
-            QString membre = "   - " + p.prenom + " " + p.nom + " | " + p.sexe + " | " + QString::number(p.age) + " ans | " + p.competence;
-            painter.drawText(colEquipe + 8, y + 18, membre);
-            y += 25;
+            QTableWidgetItem *item = m_table->item(r, c);
+            QString value = item ? item->text() : "-";
+
+            // Alignement selon la colonne
+            Qt::Alignment alignment = Qt::AlignCenter;
+
+            if (c == 1 || c == 6)
+                alignment = Qt::AlignVCenter | Qt::AlignLeft;
+
+            painter.drawText(
+                QRect(x + 5, y + 2, widths[i] - 10, rowHeight - 4),
+                alignment,
+                painter.fontMetrics().elidedText(
+                    value,
+                    Qt::ElideRight,
+                    widths[i] - 14
+                    )
+                );
+
+            x += widths[i];
         }
 
-        y += 10;
+        // Separation des lignes
+        painter.setPen(QPen(lineColor, 1));
+
+        painter.drawLine(
+            margin, y + rowHeight,
+            W - margin, y + rowHeight
+            );
+
+        y += rowHeight;
     }
 
-    if (y > page.height() - 180)
-    {
-        pdf.newPage();
-        y = 70;
-    }
+    // Footer derniere page
+    painter.setPen(lineColor);
+    painter.drawLine(
+        margin, H - 48,
+        W - margin, H - 48
+        );
 
-    int total = 0;
-    int hommes = 0;
-    int femmes = 0;
+    painter.setPen(turquoise);
+    painter.setFont(QFont("Segoe UI", 9, QFont::Bold));
 
-    for (const Equipe &e : m_equipes)
-    {
-        total += e.taille();
-        hommes += e.hommes();
-        femmes += e.femmes();
-    }
-
-    painter.setPen(QColor("#087F91"));
-    painter.setFont(QFont("Segoe UI", 14, QFont::Bold));
-    painter.drawText(left, y + 30, "Statistiques");
-
-    painter.setPen(Qt::black);
-    painter.setFont(QFont("Segoe UI", 11));
-    painter.drawText(left, y + 60, "Nombre d'equipes : " + QString::number(m_equipes.size()));
-    painter.drawText(left, y + 85, "Nombre de membres : " + QString::number(total));
-    painter.drawText(left, y + 110, "Hommes : " + QString::number(hommes));
-    painter.drawText(left, y + 135, "Femmes : " + QString::number(femmes));
+    painter.drawText(
+        QRect(margin, H - 40, availableWidth, 20),
+        Qt::AlignCenter,
+        "DEVENA - HACK TODAY / BUILD TOMORROW"
+        );
 
     painter.end();
 
-    QMessageBox::information(this, "Export PDF", "Le fichier PDF a ete exporte avec succes.");
+    QMessageBox::information(
+        this,
+        "Export PDF",
+        "Le tableau des equipes a ete exporte avec succes."
+        );
+}
+
+/* =====================================================
+   EXPORT PDF : FICHE EQUIPE - DESIGN DEVENA
+   ===================================================== */
+
+void MainWindow::exporterEquipePDF(int index)
+{
+    if (index < 0 || index >= m_table->rowCount())
+        return;
+
+    auto valeur = [this, index](int col) -> QString
+    {
+        QTableWidgetItem *item = m_table->item(index, col);
+        return item ? item->text() : "-";
+    };
+
+    QString id = valeur(0);
+    QString nom = valeur(1);
+
+    QString file = QFileDialog::getSaveFileName(
+        this,
+        "Exporter la fiche equipe",
+        "Devena_Equipe_" + id + ".pdf",
+        "PDF (*.pdf)"
+        );
+
+    if (file.isEmpty())
+        return;
+
+    QPdfWriter pdf(file);
+    pdf.setPageSize(QPageSize(QPageSize::A4));
+    pdf.setPageOrientation(QPageLayout::Portrait);
+    pdf.setResolution(96);
+
+    QPainter p(&pdf);
+
+    if (!p.isActive())
+    {
+        QMessageBox::warning(
+            this, "Erreur",
+            "Impossible de creer le PDF."
+            );
+        return;
+    }
+
+    const int W = p.viewport().width();
+    const int H = p.viewport().height();
+
+    const QColor navy("#071421");
+    const QColor navyCard("#102538");
+    const QColor turquoise("#18D9EF");
+    const QColor white("#FFFFFF");
+    const QColor grey("#8EA0B7");
+
+    // Fond principal
+    p.fillRect(0, 0, W, H, navy);
+
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setRenderHint(QPainter::SmoothPixmapTransform);
+
+    // ================= HEADER =================
+
+    p.setPen(turquoise);
+    p.setFont(QFont("Segoe UI", 27, QFont::Bold));
+
+    p.drawText(
+        QRect(45, 45, W - 90, 55),
+        Qt::AlignLeft | Qt::AlignVCenter,
+        "DEVENA"
+        );
+
+    p.setPen(grey);
+    p.setFont(QFont("Segoe UI", 9));
+
+    p.drawText(
+        QRect(45, 100, W - 90, 25),
+        Qt::AlignLeft,
+        "SMART HACKATHON MANAGEMENT"
+        );
+
+    p.setPen(turquoise);
+    p.setFont(QFont("Segoe UI", 11, QFont::Bold));
+
+    p.drawText(
+        QRect(45, 145, W - 90, 35),
+        Qt::AlignCenter,
+        "FICHE EQUIPE"
+        );
+
+    p.setPen(QPen(turquoise, 2));
+    p.drawLine(45, 190, W - 45, 190);
+
+    // ================= IDENTITE EQUIPE =================
+
+    int y = 220;
+
+    p.setPen(white);
+    p.setFont(QFont("Segoe UI", 21, QFont::Bold));
+
+    p.drawText(
+        QRect(50, y, W - 100, 40),
+        Qt::AlignCenter,
+        nom
+        );
+
+    p.setPen(turquoise);
+    p.setFont(QFont("Segoe UI", 11, QFont::DemiBold));
+
+    p.drawText(
+        QRect(50, y + 43, W - 100, 25),
+        Qt::AlignCenter,
+        "ID : " + id
+        );
+
+    // ================= CARTES STATISTIQUES =================
+
+    int margin = 45;
+    int gap = 14;
+    int cardW = (W - 2 * margin - gap) / 2;
+    int cardH = 85;
+    int cardY = 320;
+
+    QStringList statTitles = {
+        "MEMBRES",
+        "CAPACITE",
+        "SEXE",
+        "AGE MOYEN"
+    };
+
+    QStringList statValues = {
+        valeur(2),
+        valeur(3),
+        valeur(4),
+        valeur(5)
+    };
+
+    for (int i = 0; i < 4; ++i)
+    {
+        int col = i % 2;
+        int row = i / 2;
+
+        int x = margin + col * (cardW + gap);
+        int cy = cardY + row * (cardH + gap);
+
+        p.setPen(Qt::NoPen);
+        p.setBrush(navyCard);
+
+        p.drawRoundedRect(
+            QRect(x, cy, cardW, cardH),
+            10, 10
+            );
+
+        p.setPen(grey);
+        p.setFont(QFont("Segoe UI", 9, QFont::Bold));
+
+        p.drawText(
+            QRect(x + 15, cy + 12, cardW - 30, 22),
+            Qt::AlignLeft,
+            statTitles[i]
+            );
+
+        p.setPen(white);
+        p.setFont(QFont("Segoe UI", 18, QFont::Bold));
+
+        p.drawText(
+            QRect(x + 15, cy + 36, cardW - 30, 35),
+            Qt::AlignLeft | Qt::AlignVCenter,
+            statValues[i]
+            );
+    }
+
+    // ================= INFORMATIONS =================
+
+    int infoY = 535;
+
+    p.setPen(turquoise);
+    p.setFont(QFont("Segoe UI", 12, QFont::Bold));
+
+    p.drawText(
+        QRect(50, infoY, W - 100, 30),
+        Qt::AlignLeft,
+        "INFORMATIONS DE L'EQUIPE"
+        );
+
+    infoY += 40;
+
+    QStringList labels = {
+        "Competences",
+        "Date de creation"
+    };
+
+    QStringList values = {
+        valeur(6),
+        valeur(7)
+    };
+
+    for (int i = 0; i < labels.size(); ++i)
+    {
+        p.setPen(Qt::NoPen);
+        p.setBrush(navyCard);
+
+        p.drawRoundedRect(
+            QRect(45, infoY, W - 90, 55),
+            8, 8
+            );
+
+        p.setPen(grey);
+        p.setFont(QFont("Segoe UI", 9, QFont::Bold));
+
+        p.drawText(
+            QRect(60, infoY + 5, W - 120, 20),
+            Qt::AlignLeft,
+            labels[i]
+            );
+
+        p.setPen(white);
+        p.setFont(QFont("Segoe UI", 10));
+
+        p.drawText(
+            QRect(60, infoY + 25, W - 120, 25),
+            Qt::AlignLeft | Qt::AlignVCenter,
+            values[i]
+            );
+
+        infoY += 65;
+    }
+
+    // ================= QR CODE =================
+
+    QString code = "DEVE-EQ-" + id;
+    QImage qrImage = creerQR(code);
+
+    if (!qrImage.isNull())
+    {
+        int qrSize = 145;
+        int qrX = (W - qrSize) / 2;
+        int qrY = infoY + 15;
+
+        // Cadre blanc
+        p.setPen(Qt::NoPen);
+        p.setBrush(white);
+
+        p.drawRoundedRect(
+            QRect(qrX - 10, qrY - 10,
+                  qrSize + 20, qrSize + 20),
+            8, 8
+            );
+
+        p.drawImage(
+            QRect(qrX, qrY, qrSize, qrSize),
+            qrImage
+            );
+
+        p.setPen(turquoise);
+        p.setFont(QFont("Segoe UI", 10, QFont::Bold));
+
+        p.drawText(
+            QRect(45, qrY + qrSize + 20,
+                  W - 90, 25),
+            Qt::AlignCenter,
+            code
+            );
+    }
+
+    // ================= FOOTER =================
+
+    int footerY = H - 65;
+
+    p.setPen(QPen(QColor("#29445A"), 1));
+    p.drawLine(45, footerY, W - 45, footerY);
+
+    p.setPen(turquoise);
+    p.setFont(QFont("Segoe UI", 10, QFont::Bold));
+
+    p.drawText(
+        QRect(45, footerY + 10, W - 90, 20),
+        Qt::AlignCenter,
+        "DEVENA"
+        );
+
+    p.setPen(grey);
+    p.setFont(QFont("Segoe UI", 8));
+
+    p.drawText(
+        QRect(45, footerY + 30, W - 90, 18),
+        Qt::AlignCenter,
+        "HACK TODAY / BUILD TOMORROW"
+        );
+
+    p.end();
+
+    QMessageBox::information(
+        this,
+        "Export PDF",
+        "La fiche de l'equipe a ete exportee avec succes."
+        );
 }
 
 /* =====================================================
@@ -2930,7 +4242,7 @@ void MainWindow::changerModeClair()
         if (statsTitle) statsTitle->setStyleSheet("font-size:20px;font-weight:bold;color:white;");
     }
 
-    afficherStatistiques();
+   afficherOrganigramme();
 }
 
 // ==========================================
@@ -2982,5 +4294,5 @@ void MainWindow::filtrer()
 void MainWindow::rafraichir()
 {
     afficherEquipes();
-    afficherStatistiques();
+   afficherOrganigramme();
 }
