@@ -1,5 +1,5 @@
 
-QT += core gui widgets printsupport charts network sql multimedia
+QT += core gui widgets printsupport charts network sql
 
 CONFIG += c++17
 TEMPLATE = app
@@ -8,11 +8,13 @@ TARGET = Devena
 SOURCES += \
     main.cpp \
     participant.cpp \
-    connection.cpp
+    connection.cpp \
+    chatbot.cpp
 
 HEADERS += \
     participant.h \
-    connection.h
+    connection.h \
+    chatbot.h
 
 # Lecture des CV au format PDF
 greaterThan(QT_MAJOR_VERSION, 5) {

@@ -10,10 +10,6 @@
 #include <QUndoCommand>
 #include <QSqlQuery>
 #include <QSqlQueryModel>
-#include <QAudioSource>
-#include <QMediaDevices>
-#include <QAudioFormat>
-#include <QFile>
 
 class QComboBox;
 class QHBoxLayout;
@@ -26,7 +22,6 @@ class QSortFilterProxyModel;
 class QTableView;
 class QUndoStack;
 
-// ---------------------------------------------------------------- Données
 QString makeStyle(bool dark);
 
 struct Theme {
@@ -49,19 +44,17 @@ struct Participant {
     bool supprimer(QString id);
     bool modifier();
 };
+class ChatbotDialog;
 
-// ---------------------------------------------------------------- Modèle
 class ParticipantModel : public QAbstractTableModel {
     Q_OBJECT
 public:
     enum Role { IdRole = Qt::UserRole + 1 };
     explicit ParticipantModel(QObject* parent = nullptr);
-
     int rowCount(const QModelIndex& parent = {}) const override;
     int columnCount(const QModelIndex& parent = {}) const override;
     QVariant data(const QModelIndex& index, int role) const override;
     QVariant headerData(int section, Qt::Orientation o, int role) const override;
-
     const QList<Participant>& all() const { return m_data; }
     const Participant& at(int row) const { return m_data.at(row); }
     int rowOf(const QString& id) const;
@@ -69,16 +62,13 @@ public:
     void insertAt(int row, const Participant& p);
     void removeAt(int row);
     void replace(int row, const Participant& p);
-
 signals:
     void changed();
-
 private:
     QList<Participant> m_data;
     int m_next = 1;
 };
 
-// ---------------------------------------------------------------- Annulation (QUndoStack)
 class AddCmd : public QUndoCommand {
 public:
     AddCmd(ParticipantModel* m, const Participant& p);
@@ -106,7 +96,6 @@ private:
     ParticipantModel* m_m; Participant m_old, m_new;
 };
 
-// ---------------------------------------------------------------- Delegates
 class CellDelegate : public QStyledItemDelegate {
 public:
     using QStyledItemDelegate::QStyledItemDelegate;
@@ -126,8 +115,7 @@ class ActionsDelegate : public CellDelegate {
 public:
     using CellDelegate::CellDelegate;
     void paint(QPainter* p, const QStyleOptionViewItem& o, const QModelIndex& i) const override;
-    bool editorEvent(QEvent* e, QAbstractItemModel* m, const QStyleOptionViewItem& o,
-                     const QModelIndex& i) override;
+    bool editorEvent(QEvent* e, QAbstractItemModel* m, const QStyleOptionViewItem& o, const QModelIndex& i) override;
 signals:
     void viewClicked(const QString& id);
     void editClicked(const QString& id);
@@ -136,7 +124,6 @@ private:
     static QRect btn(const QRect& cell, int k);
 };
 
-// ---------------------------------------------------------------- Dialogues
 class ProfileDialog : public QDialog {
 public:
     ProfileDialog(const Participant& p, QWidget* parent);
@@ -149,20 +136,16 @@ public:
 private:
     void validate();
     void importerCv();
-    void basculerEnregistrementVocaux();
-    void arreterEtTraiterAudio();
 
-    QLineEdit *m_nom, *m_prenom, *m_email, *m_comp, *m_age, *m_sexe;
+    QLineEdit *m_nom, *m_prenom, *m_email, *m_comp, *m_age;
+    QComboBox* m_sexe;
     QLabel* m_err;
     QLabel* m_info;
     QPushButton* m_cvBtn;
-    QPushButton* m_micBtn;
 
-    QAudioSource* m_audioSource = nullptr;
-    QFile* m_audioFile = nullptr;
+
 };
 
-// ---------------------------------------------------------------- Extraction des compétences d'un CV
 struct ResultatCv {
     QStringList competences;
     QString niveau, domaine;
@@ -191,12 +174,10 @@ private:
     QListWidget* m_list;
 };
 
-// ---------------------------------------------------------------- Fenêtre principale
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public:
     explicit MainWindow(QWidget* parent = nullptr);
-
 private slots:
     void onAdd();
     void onEdit(const QString& id);
@@ -205,14 +186,13 @@ private slots:
     void exportPdf();
     void toggleTheme();
     void refreshKpis();
-
+    void ouvrirChatbot();
 private:
     void applyTheme(bool dark);
     void loadSample();
     QLabel* addKpi(QHBoxLayout* layout, const QString& title);
     QWidget* buildSidebar();
     QWidget* buildStatsChart();
-
     ParticipantModel* m_model;
     QSortFilterProxyModel* m_proxy;
     QTableView* m_view;

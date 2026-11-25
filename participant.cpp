@@ -35,6 +35,8 @@
 #include <QUndoStack>
 #include <QVBoxLayout>
 #include <QtCharts>
+#include <QStringList>
+#include "chatbot.h"
 
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 QT_CHARTS_USE_NAMESPACE
@@ -433,14 +435,17 @@ ParticipantFormDialog::ParticipantFormDialog(QWidget* parent, const Participant*
     m_prenom = new QLineEdit(this);
     m_email = new QLineEdit(this);
     m_age = new QLineEdit(this);
-    m_sexe = new QLineEdit(this);
+    m_sexe = new QComboBox(this);
+    m_sexe->addItem("Choisir le sexe", "");
+    m_sexe->addItem("Homme", "Homme");
+    m_sexe->addItem("Femme", "Femme");
+    m_sexe->setCurrentIndex(0);
     m_comp = new QLineEdit(this);
 
     m_nom->setPlaceholderText("Ex: Ben Ali");
     m_prenom->setPlaceholderText("Ex: Yassine");
     m_email->setPlaceholderText("exemple@esprit.tn");
     m_age->setPlaceholderText("Ex: 20");
-    m_sexe->setPlaceholderText("Homme / Femme");
     m_comp->setPlaceholderText("C++, Qt, Python, SQL");
 
     m_err = new QLabel(this);
@@ -450,7 +455,7 @@ ParticipantFormDialog::ParticipantFormDialog(QWidget* parent, const Participant*
     m_info->setStyleSheet("color: #38bdf8; font-size: 12px;");
 
     m_cvBtn = new QPushButton("Importer un CV", this);
-    m_micBtn = new QPushButton("🎤 Dicter", this);
+
 
     auto* formLayout = new QFormLayout();
     formLayout->setSpacing(12);
@@ -463,7 +468,6 @@ ParticipantFormDialog::ParticipantFormDialog(QWidget* parent, const Participant*
     auto* rowComp = new QHBoxLayout();
     rowComp->addWidget(m_comp, 1);
     rowComp->addWidget(m_cvBtn);
-    rowComp->addWidget(m_micBtn);
     formLayout->addRow("Compétences", rowComp);
 
     mainLayout->addLayout(formLayout);
@@ -484,7 +488,6 @@ ParticipantFormDialog::ParticipantFormDialog(QWidget* parent, const Participant*
     connect(btnSave, &QPushButton::clicked, this, [this] { validate(); });
     connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
     connect(m_cvBtn, &QPushButton::clicked, this, [this] { importerCv(); });
-    connect(m_micBtn, &QPushButton::clicked, this, &ParticipantFormDialog::basculerEnregistrementVocaux);
 
     if (p) {
         m_nom->setText(p->nom);
@@ -492,7 +495,8 @@ ParticipantFormDialog::ParticipantFormDialog(QWidget* parent, const Participant*
         m_email->setText(p->email);
         m_comp->setText(p->competences.join(", "));
         m_age->setText(p->age > 0 ? QString::number(p->age) : "");
-        m_sexe->setText(p->sexe);
+        const int sexeIndex = m_sexe->findData(p->sexe);
+        if (sexeIndex >= 0) m_sexe->setCurrentIndex(sexeIndex);
     }
 }
 
@@ -503,7 +507,7 @@ Participant ParticipantFormDialog::result(const QString& id) const {
     p.prenom = m_prenom->text().trimmed();
     p.email = m_email->text().trimmed();
     p.age = m_age->text().toInt();
-    p.sexe = m_sexe->text().trimmed();
+    p.sexe = m_sexe->currentData().toString();
     for (const QString& c : m_comp->text().split(',', Qt::SkipEmptyParts))
         p.competences << c.trimmed();
     return p;
@@ -519,58 +523,10 @@ void ParticipantFormDialog::validate() {
         m_err->setText("Saisissez une adresse e-mail valide.");
         return;
     }
-    accept();
-}
-
-// Logique d'enregistrement et de traitement vocal
-void ParticipantFormDialog::basculerEnregistrementVocaux() {
-    if (!m_audioSource) {
-        m_audioFile = new QFile("temp_audio.wav", this);
-        if (!m_audioFile->open(QIODevice::WriteOnly)) return;
-
-        QAudioFormat format;
-        format.setSampleRate(16000);
-        format.setChannelCount(1);
-        format.setSampleFormat(QAudioFormat::Int16);
-
-        QAudioDevice info = QMediaDevices::defaultAudioInput();
-        if (info.isNull()) {
-            m_err->setText("Aucun microphone détecté.");
-            return;
-        }
-
-        m_audioSource = new QAudioSource(info, format, this);
-        m_audioSource->start(m_audioFile);
-
-        m_micBtn->setText("⏹ Arrêter");
-        m_micBtn->setStyleSheet("background-color: #ef4444; color: white; border: none;");
-        m_info->setText("Écoute en cours... Parlez maintenant.");
-    } else {
-        m_audioSource->stop();
-        m_audioFile->close();
-
-        delete m_audioSource;
-        m_audioSource = nullptr;
-
-        m_micBtn->setText("🎤 Dicter");
-        m_micBtn->setStyleSheet("");
-        m_info->setText("Traitement de la voix en cours...");
-
-        arreterEtTraiterAudio();
+    if (m_sexe->currentData().toString().isEmpty()) {
+        m_err->setText("Choisissez Homme ou Femme.");
+        return;
     }
-}
-
-void ParticipantFormDialog::arreterEtTraiterAudio() {
-    qint64 timestamp = QDateTime::currentMSecsSinceEpoch();
-
-    m_nom->setText("Vocal");
-    m_prenom->setText("Participant");
-    m_email->setText(QString("vocal.%1@esprit.tn").arg(timestamp));
-    m_age->setText("23");
-    m_sexe->setText("Homme");
-    m_comp->setText("Qt, C++, Oracle, Voix");
-
-    m_info->setText("Transcription vocale terminée ! Enregistrement...");
     accept();
 }
 
@@ -580,10 +536,16 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     resize(1280, 800);
 
     m_model = new ParticipantModel(this);
+
+    // Proxy : recherche globale + tri alphabétique sans distinction de casse
     m_proxy = new QSortFilterProxyModel(this);
     m_proxy->setSourceModel(m_model);
     m_proxy->setFilterCaseSensitivity(Qt::CaseInsensitive);
-    m_proxy->setFilterKeyColumn(-1);
+    m_proxy->setFilterKeyColumn(-1); // recherche dans toutes les colonnes
+    m_proxy->setSortCaseSensitivity(Qt::CaseInsensitive);
+    m_proxy->setSortRole(Qt::DisplayRole);
+    m_proxy->setDynamicSortFilter(true);
+
     m_stack = new QUndoStack(this);
     loadSample();
 
@@ -615,6 +577,14 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     auto* pdfBtn = new QPushButton("Exporter en PDF");
     auto* addBtn = new QPushButton("+ Ajouter un participant");
     addBtn->setObjectName("primary");
+
+    auto* aiBtn = new QPushButton("✦ Devena AI");
+    aiBtn->setObjectName("aiButton");
+
+    head->addWidget(m_themeBtn);
+    head->addWidget(pdfBtn);
+    head->addWidget(aiBtn);
+    head->addWidget(addBtn);
     head->addWidget(m_themeBtn);
     head->addWidget(pdfBtn);
     head->addWidget(addBtn);
@@ -636,6 +606,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     m_view->setEditTriggers(QAbstractItemView::NoEditTriggers);
     m_view->setShowGrid(false);
     m_view->setSortingEnabled(true);
+    m_view->horizontalHeader()->setSortIndicatorShown(true);
     m_view->verticalHeader()->hide();
     m_view->verticalHeader()->setDefaultSectionSize(44);
 
@@ -680,6 +651,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(undoBtn, &QPushButton::clicked, m_stack, &QUndoStack::undo);
     connect(m_search, &QLineEdit::textChanged, m_proxy, &QSortFilterProxyModel::setFilterFixedString);
     connect(addBtn, &QPushButton::clicked, this, &MainWindow::onAdd);
+    connect(aiBtn, &QPushButton::clicked,
+            this, &MainWindow::ouvrirChatbot);
     connect(pdfBtn, &QPushButton::clicked, this, &MainWindow::exportPdf);
     connect(m_themeBtn, &QPushButton::clicked, this, &MainWindow::toggleTheme);
     connect(m_model, &ParticipantModel::changed, this, &MainWindow::refreshKpis);
@@ -846,42 +819,69 @@ void MainWindow::refreshKpis() {
     m_kDes->setText(QString::number(des));
 }
 
-QWidget* MainWindow::buildSidebar() {
-    auto* bar = new QFrame;
+
+QWidget* MainWindow::buildSidebar()
+{
+    QWidget* bar = new QWidget(this);
     bar->setObjectName("sidebar");
-    bar->setFixedWidth(210);
-    auto* l = new QVBoxLayout(bar);
-    l->setContentsMargins(12, 16, 12, 16);
-    l->setSpacing(6);
+    bar->setFixedWidth(220);
 
-    auto* logo = new QLabel("◆ Devena");
+    QVBoxLayout* l = new QVBoxLayout(bar);
+    l->setContentsMargins(12, 20, 12, 20);
+    l->setSpacing(10);
+
+    QLabel* logo = new QLabel("DEVENA");
     logo->setObjectName("logo");
-    auto* slogan = new QLabel("Connecter les talents,\nconstruire l'avenir");
-    slogan->setObjectName("sub");
+    logo->setAlignment(Qt::AlignCenter);
     l->addWidget(logo);
-    l->addWidget(slogan);
-    l->addSpacing(16);
 
-    const QStringList items = {"Tableau de bord", "Participants", "Équipes",
-                               "Projets", "Évaluations", "Paramètres"};
-    for (const QString& it : items) {
-        auto* b = new QPushButton(it);
-        b->setObjectName("nav");
+    l->addSpacing(25);
+
+    const QStringList items = {
+        "Tableau de bord",
+        "Participants",
+        "Équipes",
+        "Projets",
+        "Évaluations",
+        "Paramètres"
+    };
+
+    for (const QString& item : items)
+    {
+        QPushButton* b = new QPushButton(item);
+        b->setObjectName("navButton");
         b->setCursor(Qt::PointingHandCursor);
-        b->setProperty("active", it == "Participants");
-        connect(b, &QPushButton::clicked, this, [this, it] {
-            statusBar()->showMessage("Module « " + it + " » : bientôt disponible", 3000);
-        });
+        b->setMinimumHeight(42);
+
+        if (item == "Participants")
+            b->setProperty("active", true);
+
+        connect(b, &QPushButton::clicked, this,
+                [this, item]()
+                {
+                    if (item == "Participants")
+                    {
+                        // Le module Participants est déjà affiché.
+                        return;
+                    }
+
+                    statusBar()->showMessage(
+                        item + " : bientôt disponible", 3000);
+                });
+
         l->addWidget(b);
     }
+
     l->addStretch();
 
-    auto* foot = new QLabel("Hack today\nBuild tomorrow");
+    QLabel* foot = new QLabel("Devena - Gestion des Hackathons");
     foot->setObjectName("sub");
     foot->setAlignment(Qt::AlignCenter);
     l->addWidget(foot);
+
     return bar;
 }
+
 
 QWidget* MainWindow::buildStatsChart() {
     auto* box = new QWidget;
@@ -1065,4 +1065,9 @@ QStringList CvPreviewDialog::selection() const {
             sel << m_list->item(i)->text();
     }
     return sel;
+}
+void MainWindow::ouvrirChatbot()
+{
+    ChatbotDialog dialog(this);
+    dialog.exec();
 }

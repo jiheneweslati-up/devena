@@ -1,4 +1,4 @@
-#include "Connection.h"
+#include "connection.h"
 
 // Ctor
 // Initialise l'attribut `db` avec le driver ODBC.
