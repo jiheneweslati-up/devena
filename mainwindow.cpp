@@ -511,14 +511,53 @@ void MainWindow::creerInterface()
         << "Equipe vide"
         << "Equipe complete"
         );
+    // ================= TRI =================
 
+    m_tri = new QComboBox;
+    m_tri->addItem("Trier par ID");
+    m_tri->addItem("Trier par Nom");
+    m_tri->addItem("Trier par âge moyen");
+
+    m_ordreTri = new QPushButton("↑ Croissant");
+    m_ordreTri->setCursor(Qt::PointingHandCursor);
+
+    // Ajouter les widgets dans la même ligne
     filters->addWidget(m_recherche, 1);
     filters->addWidget(m_filtre);
+    filters->addWidget(m_tri);
+    filters->addWidget(m_ordreTri);
 
     v->addLayout(filters);
 
-    connect(m_recherche, &QLineEdit::textChanged, this, [this](const QString &) { filtrer(); });
-    connect(m_filtre, &QComboBox::currentTextChanged, this, [this](const QString &) { filtrer(); });
+    // Connexion recherche
+    connect(m_recherche, &QLineEdit::textChanged, this,
+            [this](const QString &) {
+                filtrer();
+            });
+
+    // Connexion filtre
+    connect(m_filtre, &QComboBox::currentTextChanged, this,
+            [this](const QString &) {
+                filtrer();
+            });
+
+    // Connexion du tri
+    connect(m_tri, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this](int) {
+                trierEquipes();
+            });
+
+    // Connexion Croissant / Décroissant
+    connect(m_ordreTri, &QPushButton::clicked, this, [this]() {
+
+        m_triCroissant = !m_triCroissant;
+
+        m_ordreTri->setText(
+            m_triCroissant ? "↑ Croissant" : "↓ Décroissant"
+            );
+
+        trierEquipes();
+    });
 
     /* ================= TABLE ================= */
 
@@ -4287,7 +4326,65 @@ void MainWindow::filtrer()
         m_table->setRowHidden(i, !visible);
     }
 }
+void MainWindow::trierEquipes()
+{
+    if (!m_table || !m_tri)
+        return;
 
+    int colonne = 0;
+
+    switch (m_tri->currentIndex())
+    {
+    case 0:
+        colonne = 0; // ID
+        break;
+
+    case 1:
+        colonne = 1; // Nom
+        break;
+
+    case 2:
+        colonne = 5; // Age moyen
+        break;
+    }
+
+    QList<int> ordre;
+
+    for (int i = 0; i < m_table->rowCount(); ++i)
+        ordre.append(i);
+
+    std::stable_sort(ordre.begin(), ordre.end(),
+                     [this, colonne](int a, int b)
+                     {
+                         QString va = m_table->item(a, colonne)->text();
+                         QString vb = m_table->item(b, colonne)->text();
+
+                         int r = 0;
+
+                         if (colonne == 0)
+                         {
+                             r = va.mid(1).toInt() - vb.mid(1).toInt();
+                         }
+                         else if (colonne == 1)
+                         {
+                             r = QString::localeAwareCompare(va, vb);
+                         }
+                         else
+                         {
+                             r = va.toDouble() < vb.toDouble() ? -1 :
+                                     va.toDouble() > vb.toDouble() ? 1 : 0;
+                         }
+
+                         return m_triCroissant ? r < 0 : r > 0;
+                     });
+
+    // Réorganiser les lignes
+    m_table->setSortingEnabled(false);
+
+    for (int i = 0; i < ordre.size(); ++i)
+        m_table->verticalHeader()->moveSection(
+            m_table->verticalHeader()->visualIndex(ordre[i]), i);
+}
 /* =====================================================
    RAFRAICHIR
    ===================================================== */

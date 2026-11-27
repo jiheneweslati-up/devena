@@ -9,6 +9,9 @@
 #include <QImage>
 #include <QPixmap>
 #include <QDate>
+#include <QPushButton>
+#include <QComboBox>
+
 
 class MainWindow : public QMainWindow
 {
@@ -64,6 +67,12 @@ private:
     class QTableWidget *m_table;
     class QLineEdit *m_recherche;
     class QComboBox *m_filtre;
+    QComboBox *m_tri = nullptr;
+    QPushButton *m_ordreTri = nullptr;
+
+    bool m_triCroissant = true;
+
+    void trierEquipes();
     class QLabel *m_notification;
     class QLabel *m_courbe;
 
